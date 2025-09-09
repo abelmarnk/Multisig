@@ -2,3 +2,4 @@
 - Add a rent collector to the group
 - Add close proposal/close record/close transaction
 - Add transaction support later(in place of just instruction support) and also add the ability to extend the transaction
+- Add LiteSVM tests
