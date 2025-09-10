@@ -1,25 +1,15 @@
-use anchor_lang::{
-    prelude::*,
-    solana_program::program_option::COption
-};
+use anchor_lang::{prelude::*, solana_program::program_option::COption};
 use anchor_spl::token_interface::{
-    TokenInterface,
-    TokenAccount, Mint,
-    spl_token_2022::{
-        state::AccountState
-    }
+    spl_token_2022::state::AccountState, Mint, TokenAccount, TokenInterface,
 };
 
-use crate::{Permissions, utils::fractional_threshold::FractionalThreshold};
+use crate::{utils::fractional_threshold::FractionalThreshold, Permissions};
 
 use crate::state::{
     asset::Asset,
-    group::Group,
-    member::{
-        AssetMember,
-        GroupMember
-    },
     error::TokenError,
+    group::Group,
+    member::{AssetMember, GroupMember},
 };
 
 // Instruction arguments struct for AddAssetMintInstructionAccounts
@@ -90,6 +80,7 @@ pub struct AddAssetMintInstructionAccounts<'info> {
         seeds = [b"authority", group.key().as_ref(), mint.key().as_ref()],
         bump
     )]
+    /// CHECK: Just signs
     pub asset_authority: UncheckedAccount<'info>,
 
     #[account(
@@ -226,23 +217,26 @@ pub fn add_asset_mint_handler(
     }
 
     // Token authority checks (mint/freeze)
-    
+
     require_keys_eq!(
-        ctx.accounts.mint.mint_authority.ok_or(TokenError::AuthorityNotProvided)?,
+        ctx.accounts
+            .mint
+            .mint_authority
+            .ok_or(TokenError::AuthorityNotProvided)?,
         *ctx.accounts.asset_authority.key,
         TokenError::InvalidMintMintAuthority
     );
 
     match ctx.accounts.mint.freeze_authority.as_ref() {
-            COption::Some(freeze_authority) => {
-                require_keys_eq!(
-                    *freeze_authority,
-                    *ctx.accounts.asset_authority.key,
-                    TokenError::InvalidMintMintAuthority
-                );
-            }
-            COption::None => {}
+        COption::Some(freeze_authority) => {
+            require_keys_eq!(
+                *freeze_authority,
+                *ctx.accounts.asset_authority.key,
+                TokenError::InvalidMintMintAuthority
+            );
         }
+        COption::None => {}
+    }
 
     Ok(())
 }
@@ -299,6 +293,7 @@ pub struct AddAssetTokenInstructionAccounts<'info> {
         seeds = [b"authority", group.key().as_ref(), token.key().as_ref()],
         bump
     )]
+    /// CHECK: Just signs
     pub asset_authority: UncheckedAccount<'info>,
 
     #[account(
@@ -423,7 +418,10 @@ pub fn add_asset_token_handler(
     );
 
     // Delegate must be None
-    require!(ctx.accounts.token.delegate.is_none(), TokenError::InvalidTokenDelegate);
+    require!(
+        ctx.accounts.token.delegate.is_none(),
+        TokenError::InvalidTokenDelegate
+    );
 
     // Close authority must be None or asset_authority
     match ctx.accounts.token.close_authority {

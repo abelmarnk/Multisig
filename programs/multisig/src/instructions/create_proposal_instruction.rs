@@ -2,11 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::hash;
 
 use crate::state::{
-    SerializableInstruction,
-    Group,
-    NormalProposal,
-    ProposalTransaction,
-    error::TokenError,
+    error::TokenError, Group, NormalProposal, ProposalTransaction, SerializableInstruction,
 };
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -56,11 +52,12 @@ pub fn create_proposal_transaction_handler(
     let proposal_tx = &mut ctx.accounts.proposal_transaction;
 
     // Validate proposer
-    require_keys_eq!(ctx.accounts.proposer.key(),
+    require_keys_eq!(
+        ctx.accounts.proposer.key(),
         *proposal.get_proposer(),
         TokenError::InvalidProposer
     );
-    
+
     // Validate proposal is still valid
     require_gte!(
         proposal.get_proposal_index(),
@@ -78,15 +75,23 @@ pub fn create_proposal_transaction_handler(
     // Hash check
     let expected_hash = proposal.get_instruction_hash();
     let actual_hash = hash::hash(&raw_instruction).to_bytes();
-    require!(actual_hash == *expected_hash, TokenError::InvalidInstructionHash);
+    require!(
+        actual_hash == *expected_hash,
+        TokenError::InvalidInstructionHash
+    );
 
     // Deserialize into custom struct
-    let serializable_instruction: SerializableInstruction = SerializableInstruction::try_from_slice(&raw_instruction)
-        .map_err(|_| TokenError::InstructionDeserializationFailed)?;
+    let serializable_instruction: SerializableInstruction =
+        SerializableInstruction::try_from_slice(&raw_instruction)
+            .map_err(|_| TokenError::InstructionDeserializationFailed)?;
 
     // Check proposal assets
     let proposal_assets = proposal.get_assets();
-    require_gte!(serializable_instruction.accounts.len(), proposal_assets.len(), TokenError::NotEnoughAccountKeys);
+    require_gte!(
+        serializable_instruction.accounts.len(),
+        proposal_assets.len(),
+        TokenError::NotEnoughAccountKeys
+    );
 
     for proposal_asset in proposal_assets.iter() {
         let index = proposal_asset.get_index() as usize;

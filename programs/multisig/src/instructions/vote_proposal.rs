@@ -1,12 +1,17 @@
 use anchor_lang::prelude::*;
 
-use crate::{GroupMember, state::{
-    asset::Asset, error::TokenError, group::Group, member::AssetMember, proposal::{
-        ConfigProposal, NormalProposal, ProposalState, ProposalTarget
-    }, vote::{VoteChoice, VoteRecord}
-}};
+use crate::{
+    state::{
+        asset::Asset,
+        error::TokenError,
+        group::Group,
+        member::AssetMember,
+        proposal::{ConfigProposal, NormalProposal, ProposalState, ProposalTarget},
+        vote::{VoteChoice, VoteRecord},
+    },
+    GroupMember,
+};
 
-// Instruction argument structs
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct VoteOnNormalProposalInstructionArgs {
     pub voting_asset_index: u8,
@@ -81,24 +86,44 @@ pub fn vote_on_normal_proposal_handler(
     let vote_record = &mut ctx.accounts.vote_record;
 
     // Check the proposal is still open
-    require!(proposal.get_state() == ProposalState::Open, TokenError::ProposalNotOpen);
+    require!(
+        proposal.get_state() == ProposalState::Open,
+        TokenError::ProposalNotOpen
+    );
 
-    if Clock::get()?.unix_timestamp.gt(&proposal.get_expiration_timestamp()) {
+    if Clock::get()?
+        .unix_timestamp
+        .gt(&proposal.get_expiration_timestamp())
+    {
         proposal.set_state(ProposalState::Expired)?;
         return Err(TokenError::ProposalExpired.into());
     }
 
     let asset_index = usize::from(voting_asset_index);
-    
+
     // Validate index
-    require!(asset_index.lt(&proposal.get_assets().len()), TokenError::InvalidAssetIndex);
+    require!(
+        asset_index.lt(&proposal.get_assets().len()),
+        TokenError::InvalidAssetIndex
+    );
 
     // Validate asset and user
-    require_keys_eq!(*proposal.get_assets()[asset_index].get_asset(), 
-        *asset.get_asset_address(), TokenError::InvalidAsset);
+    require_keys_eq!(
+        *proposal.get_assets()[asset_index].get_asset(),
+        *asset.get_asset_address(),
+        TokenError::InvalidAsset
+    );
 
-    require_keys_eq!(asset_member.get_asset(), *asset.get_asset_address(), TokenError::InvalidAssetMember);
-    require_keys_eq!(asset_member.get_user(), voter.key(), TokenError::UnauthorizedVoter);
+    require_keys_eq!(
+        asset_member.get_asset(),
+        *asset.get_asset_address(),
+        TokenError::InvalidAssetMember
+    );
+    require_keys_eq!(
+        asset_member.get_user(),
+        voter.key(),
+        TokenError::UnauthorizedVoter
+    );
 
     let weight = asset_member.get_weight();
 
@@ -107,11 +132,17 @@ pub fn vote_on_normal_proposal_handler(
         // First vote
         match vote {
             VoteChoice::For => {
-                proposal.get_asset_mut(asset_index).unwrap().add_use_vote_weight(weight);
+                proposal
+                    .get_asset_mut(asset_index)
+                    .unwrap()
+                    .add_use_vote_weight(weight);
                 proposal.check_and_mark_asset_passed(asset_index, asset)?;
             }
             VoteChoice::Against => {
-                proposal.get_asset_mut(asset_index).unwrap().add_not_use_vote_weight(weight);
+                proposal
+                    .get_asset_mut(asset_index)
+                    .unwrap()
+                    .add_not_use_vote_weight(weight);
                 proposal.check_and_mark_asset_failed(asset_index, asset)?;
             }
         }
@@ -125,27 +156,43 @@ pub fn vote_on_normal_proposal_handler(
         ));
     } else {
         // Re-vote
-        require_keys_eq!(*vote_record.get_voter(), voter.key(), TokenError::UnauthorizedVoter);
+        require_keys_eq!(
+            *vote_record.get_voter(),
+            voter.key(),
+            TokenError::UnauthorizedVoter
+        );
 
         if vote_record.get_vote_choice() != vote {
             // Undo previous
-            match vote_record.get_vote_choice(){
+            match vote_record.get_vote_choice() {
                 VoteChoice::For => {
-                    proposal.get_asset_mut(asset_index).unwrap().sub_use_vote_weight(weight);
+                    proposal
+                        .get_asset_mut(asset_index)
+                        .unwrap()
+                        .sub_use_vote_weight(weight);
                 }
                 VoteChoice::Against => {
-                    proposal.get_asset_mut(asset_index).unwrap().sub_not_use_vote_weight(weight);
+                    proposal
+                        .get_asset_mut(asset_index)
+                        .unwrap()
+                        .sub_not_use_vote_weight(weight);
                 }
             }
 
             // Apply new
             match vote {
                 VoteChoice::For => {
-                    proposal.get_asset_mut(asset_index).unwrap().add_use_vote_weight(weight);
+                    proposal
+                        .get_asset_mut(asset_index)
+                        .unwrap()
+                        .add_use_vote_weight(weight);
                     proposal.check_and_mark_asset_passed(asset_index, asset)?;
                 }
                 VoteChoice::Against => {
-                    proposal.get_asset_mut(asset_index).unwrap().add_not_use_vote_weight(weight);
+                    proposal
+                        .get_asset_mut(asset_index)
+                        .unwrap()
+                        .add_not_use_vote_weight(weight);
                     proposal.check_and_mark_asset_failed(asset_index, asset)?;
                 }
             }
@@ -157,9 +204,6 @@ pub fn vote_on_normal_proposal_handler(
     Ok(())
 }
 
-// -----------------------------------
-// Vote on Config Proposal
-// -----------------------------------
 #[derive(Accounts)]
 #[instruction(args: VoteOnConfigProposalInstructionArgs)]
 pub struct VoteOnConfigProposalInstructionAccounts<'info> {
@@ -219,9 +263,7 @@ pub fn vote_on_config_proposal_handler(
     args: VoteOnConfigProposalInstructionArgs,
 ) -> Result<()> {
     // Destructure the arguments
-    let VoteOnConfigProposalInstructionArgs {
-        vote,
-    } = args;
+    let VoteOnConfigProposalInstructionArgs { vote } = args;
 
     let proposal = &mut ctx.accounts.proposal;
     let group = &ctx.accounts.group;
@@ -230,17 +272,31 @@ pub fn vote_on_config_proposal_handler(
     let vote_record = &mut ctx.accounts.vote_record;
 
     // Proposal must be open
-    require!(proposal.get_state() == ProposalState::Open, TokenError::ProposalNotOpen);
+    require!(
+        proposal.get_state() == ProposalState::Open,
+        TokenError::ProposalNotOpen
+    );
 
     // Expiry check
-    if Clock::get()?.unix_timestamp.gt(&proposal.get_expiration_timestamp()) {
+    if Clock::get()?
+        .unix_timestamp
+        .gt(&proposal.get_expiration_timestamp())
+    {
         proposal.set_state(ProposalState::Expired)?;
         return Err(TokenError::ProposalExpired.into());
     }
 
     // Validate voter
-    require_keys_eq!(*group_member.get_user(), voter.key(), TokenError::UnauthorizedVoter);
-    require_keys_eq!(*proposal.get_group(), group.key(), TokenError::UnexpectedGroup);
+    require_keys_eq!(
+        *group_member.get_user(),
+        voter.key(),
+        TokenError::UnauthorizedVoter
+    );
+    require_keys_eq!(
+        *proposal.get_group(),
+        group.key(),
+        TokenError::UnexpectedGroup
+    );
 
     // First vote?
     if vote_record.to_account_info().data_is_empty() {
@@ -256,12 +312,32 @@ pub fn vote_on_config_proposal_handler(
                 }
             },
             ProposalTarget::Asset(target_asset) => {
-                let asset = ctx.accounts.asset.as_ref().ok_or(TokenError::AssetNotProvided)?;
-                require_keys_eq!(*target_asset, *asset.get_asset_address(), TokenError::UnexpectedAsset);
+                let asset = ctx
+                    .accounts
+                    .asset
+                    .as_ref()
+                    .ok_or(TokenError::AssetNotProvided)?;
+                require_keys_eq!(
+                    *target_asset,
+                    *asset.get_asset_address(),
+                    TokenError::UnexpectedAsset
+                );
 
-                let membership = ctx.accounts.asset_member.as_ref().ok_or(TokenError::AssetMemberNotProvided)?;
-                require_keys_eq!(membership.get_asset(), *asset.get_asset_address(), TokenError::InvalidAssetMember);
-                require_keys_eq!(membership.get_user(), voter.key(), TokenError::UnauthorizedVoter);
+                let membership = ctx
+                    .accounts
+                    .asset_member
+                    .as_ref()
+                    .ok_or(TokenError::AssetMemberNotProvided)?;
+                require_keys_eq!(
+                    membership.get_asset(),
+                    *asset.get_asset_address(),
+                    TokenError::InvalidAssetMember
+                );
+                require_keys_eq!(
+                    membership.get_user(),
+                    voter.key(),
+                    TokenError::UnauthorizedVoter
+                );
 
                 match vote {
                     VoteChoice::For => {
@@ -285,7 +361,11 @@ pub fn vote_on_config_proposal_handler(
         ));
     } else {
         // Re-vote
-        require_keys_eq!(*vote_record.get_voter(), voter.key(), TokenError::UnauthorizedVoter);
+        require_keys_eq!(
+            *vote_record.get_voter(),
+            voter.key(),
+            TokenError::UnauthorizedVoter
+        );
 
         if vote_record.get_vote_choice() != vote {
             // Undo previous
@@ -307,12 +387,32 @@ pub fn vote_on_config_proposal_handler(
                     }
                 },
                 ProposalTarget::Asset(target_asset) => {
-                    let asset = ctx.accounts.asset.as_ref().ok_or(TokenError::AssetNotProvided)?;
-                    require_keys_eq!(*target_asset, *asset.get_asset_address(), TokenError::UnexpectedAsset);
+                    let asset = ctx
+                        .accounts
+                        .asset
+                        .as_ref()
+                        .ok_or(TokenError::AssetNotProvided)?;
+                    require_keys_eq!(
+                        *target_asset,
+                        *asset.get_asset_address(),
+                        TokenError::UnexpectedAsset
+                    );
 
-                    let membership = ctx.accounts.asset_member.as_ref().ok_or(TokenError::AssetMemberNotProvided)?;
-                    require_keys_eq!(membership.get_asset(), *asset.get_asset_address(), TokenError::InvalidAssetMember);
-                    require_keys_eq!(membership.get_user(), voter.key(), TokenError::UnauthorizedVoter);
+                    let membership = ctx
+                        .accounts
+                        .asset_member
+                        .as_ref()
+                        .ok_or(TokenError::AssetMemberNotProvided)?;
+                    require_keys_eq!(
+                        membership.get_asset(),
+                        *asset.get_asset_address(),
+                        TokenError::InvalidAssetMember
+                    );
+                    require_keys_eq!(
+                        membership.get_user(),
+                        voter.key(),
+                        TokenError::UnauthorizedVoter
+                    );
 
                     match vote {
                         VoteChoice::For => {

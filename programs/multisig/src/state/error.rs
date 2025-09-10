@@ -1,6 +1,4 @@
 use anchor_lang::prelude::*;
-use anchor_lang::prelude::ProgramError;
-
 
 #[error_code]
 pub enum TokenError {
@@ -21,7 +19,7 @@ pub enum TokenError {
     #[msg("The proposal has not yet passed")]
     ProposalNotPassed,
     #[msg("The asset provided does not match the expected asset")]
-    InvalidAsset,  // Change to unexpected if necessary
+    InvalidAsset, // Change to unexpected if necessary
     #[msg("The provided member goes not govern the group")]
     NotGroupMember,
     #[msg("The provided member goes not govern the asset")]
@@ -85,7 +83,7 @@ pub enum TokenError {
     #[msg("Invalid mint freeze authority")]
     InvalidMintFreezeAuthority,
     #[msg("Invalid token owner")]
-    InvalidTokenOwner,    
+    InvalidTokenOwner,
     #[msg("Invalid token delegate")]
     InvalidTokenDelegate,
     #[msg("Invalid close authority")]
@@ -101,7 +99,9 @@ pub enum TokenError {
     #[msg("Invalid proposer")]
     InvalidProposer,
     #[msg("Insufficient permissions")]
-    InsufficientPermissions
+    InsufficientPermissions,
+    #[msg("Invalid permissions")]
+    InvalidPermissions,
 }
 
 // Implement Into<ProgramError> for TokenError

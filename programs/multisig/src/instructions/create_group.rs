@@ -1,11 +1,11 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    utils::fractional_threshold::FractionalThreshold,
     state::{
         group::Group,
         member::{GroupMember, Permissions},
     },
+    utils::fractional_threshold::FractionalThreshold,
 };
 
 // Instruction arguments struct for CreateGroupInstructionAccounts
@@ -22,7 +22,7 @@ pub struct CreateGroupInstructionArgs {
     pub minimum_vote_count: u32,
     pub max_member_weight: u32,
     pub member_weights: [u32; 5],
-    pub member_permissions: [Permissions; 5],
+    pub member_permissions: [u8; 5],
     pub default_timelock_offset: u32,
     pub expiry_offset: u32,
 }
@@ -38,13 +38,6 @@ pub struct CreateGroupInstructionAccounts<'info> {
         bump
     )]
     pub group: Account<'info, Group>,
-
-    /// PDA authority for group
-    #[account(
-        seeds = [b"authority", group.key().as_ref()],
-        bump
-    )]
-    pub group_authority: UncheckedAccount<'info>,
 
     // 5 initial members
     pub member_1: SystemAccount<'info>,
@@ -145,7 +138,6 @@ pub fn create_group_handler(
         default_timelock_offset,
         expiry_offset,
         ctx.bumps.group,
-        ctx.bumps.group_authority,
     )?;
     group.set_inner(new_group);
 
@@ -163,7 +155,7 @@ pub fn create_group_handler(
         ctx.bumps.member_account_2,
         ctx.bumps.member_account_3,
         ctx.bumps.member_account_4,
-        ctx.bumps.member_account_5
+        ctx.bumps.member_account_5,
     ];
 
     let members = [
@@ -175,20 +167,21 @@ pub fn create_group_handler(
     ];
 
     // Initialize all member accounts using iterators
-    for ((((account, member), weight), permissions), bump) in member_accounts.into_iter().
-        zip(members.into_iter()).
-        zip(member_weights.into_iter()).
-        zip(member_permissions.into_iter()).
-        zip(member_account_bumps.into_iter()){
-
-            account.set_inner(GroupMember::new(
-                member.key(),
-                permissions,
-                weight,
-                bump,
-                max_member_weight,
-            )?);
-        };
+    for ((((account, member), weight), permissions), bump) in member_accounts
+        .into_iter()
+        .zip(members.into_iter())
+        .zip(member_weights.into_iter())
+        .zip(member_permissions.into_iter())
+        .zip(member_account_bumps.into_iter())
+    {
+        account.set_inner(GroupMember::new(
+            member.key(),
+            Permissions::new(permissions)?,
+            weight,
+            bump,
+            max_member_weight,
+        )?);
+    }
 
     Ok(())
 }

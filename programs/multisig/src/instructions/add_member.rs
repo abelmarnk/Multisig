@@ -1,12 +1,15 @@
-use anchor_lang::prelude::*;
-use crate::{state::{
-    asset::Asset, group::Group, member::{AssetMember, GroupMember}, proposal::{ConfigChange, ConfigProposal, ProposalState}
-}};
 use crate::state::error::*;
+use crate::state::{
+    asset::Asset,
+    group::Group,
+    member::{AssetMember, GroupMember, Permissions},
+    proposal::{ConfigChange, ConfigProposal, ProposalState},
+};
+use anchor_lang::prelude::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
-pub struct AddGroupMemberInstructionArgs{
-    new_member: Pubkey
+pub struct AddGroupMemberInstructionArgs {
+    pub new_member: Pubkey,
 }
 
 #[derive(Accounts)]
@@ -19,13 +22,6 @@ pub struct AddGroupMemberInstructionAccounts<'info> {
         bump = group.get_account_bump()
     )]
     pub group: Account<'info, Group>,
-
-    /// Group authority PDA (freeze + burn delegate)
-    #[account(
-        seeds = [b"authority", group.key().as_ref()],
-        bump = group.get_authority_bump()
-    )]
-    pub group_authority: UncheckedAccount<'info>,
 
     /// ConfigProposal approving this addition
     #[account(
@@ -58,15 +54,16 @@ pub struct AddGroupMemberInstructionAccounts<'info> {
 
 pub fn add_group_member_handler(
     ctx: Context<AddGroupMemberInstructionAccounts>,
-    args:AddGroupMemberInstructionArgs
+    args: AddGroupMemberInstructionArgs,
 ) -> Result<()> {
-    let AddGroupMemberInstructionArgs{new_member} = args;
+    let AddGroupMemberInstructionArgs { new_member } = args;
 
     let group = &mut ctx.accounts.group;
     let proposal = &ctx.accounts.proposal;
 
     // Validate proposer
-    require_keys_eq!(ctx.accounts.proposer.key(),
+    require_keys_eq!(
+        ctx.accounts.proposer.key(),
         *proposal.get_proposer(),
         TokenError::InvalidProposer
     );
@@ -92,12 +89,16 @@ pub fn add_group_member_handler(
 
     // Add member
     match proposal.get_config_change() {
-        ConfigChange::AddGroupMember { member, weight, permissions } => {
+        ConfigChange::AddGroupMember {
+            member,
+            weight,
+            permissions,
+        } => {
             require!(*member == new_member, TokenError::InvalidMember);
 
             ctx.accounts.new_group_member.set_inner(GroupMember::new(
                 new_member,
-                *permissions,
+                Permissions::new(*permissions)?,
                 *weight,
                 ctx.bumps.new_group_member,
                 group.get_max_member_weight(),
@@ -112,8 +113,8 @@ pub fn add_group_member_handler(
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
-pub struct AddAssetMemberInstructionArgs{
-    new_member: Pubkey
+pub struct AddAssetMemberInstructionArgs {
+    pub new_member: Pubkey,
 }
 
 #[derive(Accounts)]
@@ -155,7 +156,7 @@ pub struct AddAssetMemberInstructionAccounts<'info> {
         init,
         payer = payer,
         space = 8 + AssetMember::INIT_SPACE,
-        seeds = [b"asset_member", group.key().as_ref(), asset.get_asset_address().as_ref(), new_member.as_ref()],
+        seeds = [b"asset_member", group.key().as_ref(), asset.get_asset_address().as_ref(), args.new_member.as_ref()],
         bump
     )]
     pub new_asset_member: Account<'info, AssetMember>,
@@ -170,14 +171,15 @@ pub fn add_asset_member_handler(
     ctx: Context<AddAssetMemberInstructionAccounts>,
     args: AddAssetMemberInstructionArgs,
 ) -> Result<()> {
-    let AddAssetMemberInstructionArgs{new_member} = args;
+    let AddAssetMemberInstructionArgs { new_member } = args;
 
     let group = &mut ctx.accounts.group;
     let asset = &mut ctx.accounts.asset;
     let proposal = &ctx.accounts.proposal;
 
     // Validate proposer
-    require_keys_eq!(ctx.accounts.proposer.key(),
+    require_keys_eq!(
+        ctx.accounts.proposer.key(),
         *proposal.get_proposer(),
         TokenError::InvalidProposer
     );
@@ -207,21 +209,22 @@ pub fn add_asset_member_handler(
             permissions,
             asset_address,
         } => {
-            require!(*asset_address == *asset.get_asset_address(), TokenError::InvalidAsset);
+            require!(
+                *asset_address == *asset.get_asset_address(),
+                TokenError::InvalidAsset
+            );
             require!(*member == new_member, TokenError::InvalidMember);
 
-
-            // ✅ Initialize AssetMember using constructor
             ctx.accounts.new_asset_member.set_inner(AssetMember::new(
                 new_member,
                 *asset.get_asset_address(),
-                *permissions,
+                Permissions::new(*permissions)?,
                 *weight,
                 ctx.bumps.new_asset_member,
                 group.get_max_member_weight(),
             )?);
 
-            asset.increment_member_count();
+            asset.increment_member_count()?;
         }
         _ => return err!(TokenError::InvalidConfigChange),
     }

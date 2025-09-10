@@ -17,7 +17,6 @@ pub enum VoteChoice {
 }
 
 impl VoteRecord {
-
     pub fn new(
         voter: Pubkey,
         proposal: Pubkey,
@@ -33,7 +32,7 @@ impl VoteRecord {
             vote_choice,
         }
     }
-    pub fn get_proposal(&self) -> &Pubkey{
+    pub fn get_proposal(&self) -> &Pubkey {
         &self.proposal
     }
 

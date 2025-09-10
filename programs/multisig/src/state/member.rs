@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
 
+use crate::TokenError;
+
 #[account]
 #[derive(InitSpace)]
 pub struct AssetMember {
@@ -28,12 +30,11 @@ impl AssetMember {
         account_bump: u8,
         max_weight: u32,
     ) -> Result<Self> {
-        
         Ok(Self {
             user,
             asset,
             permissions,
-            weight:weight.min(max_weight),
+            weight: weight.min(max_weight),
             account_bump,
         })
     }
@@ -70,7 +71,7 @@ impl AssetMember {
         self.permissions = permissions;
     }
 
-    pub fn set_weight(&mut self, weight: u32, max_weight: u32){
+    pub fn set_weight(&mut self, weight: u32, max_weight: u32) {
         self.weight = weight.min(max_weight);
     }
 
@@ -99,11 +100,10 @@ impl GroupMember {
         account_bump: u8,
         max_weight: u32,
     ) -> Result<Self> {
-        
         Ok(Self {
             user,
             permissions,
-            weight:weight.min(max_weight),
+            weight: weight.min(max_weight),
             account_bump,
         })
     }
@@ -132,7 +132,7 @@ impl GroupMember {
         self.permissions = permissions;
     }
 
-    pub fn set_weight(&mut self, weight: u32, max_weight: u32){
+    pub fn set_weight(&mut self, weight: u32, max_weight: u32) {
         self.weight = weight.min(max_weight);
     }
 
@@ -153,7 +153,6 @@ impl GroupMember {
     }
 }
 
-
 #[derive(AnchorDeserialize, AnchorSerialize, InitSpace, Clone, Copy)]
 pub struct Permissions {
     permissions: u8,
@@ -164,12 +163,23 @@ pub struct Permissions {
 }
 
 impl Permissions {
+    const VALID_STATE_MASK: u8 = 0b11111100;
+
+    #[inline(always)]
+    pub fn new(permissions: u8) -> Result<Permissions> {
+        let permissions = Permissions { permissions };
+        permissions.validate()?;
+        Ok(permissions)
+    }
+
     /// Check if "Propose" permission is set
+    #[inline(always)]
     pub fn has_propose(&self) -> bool {
         (self.permissions & (1 << 0)) != 0
     }
 
     /// Set or unset "Propose" permission
+    #[inline]
     pub fn set_propose(&mut self, enable: bool) {
         if enable {
             self.permissions |= 1 << 0;
@@ -179,16 +189,27 @@ impl Permissions {
     }
 
     /// Check if "Add asset" permission is set
+    #[inline(always)]
     pub fn has_add_asset(&self) -> bool {
         (self.permissions & (1 << 1)) != 0
     }
 
     /// Set or unset "Add asset" permission
+    #[inline]
     pub fn set_add_asset(&mut self, enable: bool) {
         if enable {
             self.permissions |= 1 << 1;
         } else {
             self.permissions &= !(1 << 1);
         }
+    }
+
+    #[inline]
+    pub fn validate(&self) -> Result<()> {
+        if (self.permissions & Self::VALID_STATE_MASK).ne(&0) {
+            return Err(TokenError::InvalidPermissions.into());
+        }
+
+        Ok(())
     }
 }

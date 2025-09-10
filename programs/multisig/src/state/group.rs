@@ -1,5 +1,5 @@
+use crate::{utils::FractionalThreshold, TokenError};
 use anchor_lang::prelude::*;
-use crate::{TokenError, utils::FractionalThreshold};
 
 #[account]
 #[derive(InitSpace)]
@@ -18,7 +18,7 @@ pub struct Group {
 
     /// Threshold to change configuration
     change_config_threshold: FractionalThreshold,
-    /// Threshold to stop a configuration change 
+    /// Threshold to stop a configuration change
     not_change_config_threshold: FractionalThreshold,
 
     /// Minimum number of members required for the group to remain valid
@@ -26,7 +26,7 @@ pub struct Group {
 
     minimum_vote_count: u32,
 
-    max_member_weight:u32,
+    max_member_weight: u32,
 
     next_proposal_index: u64,
 
@@ -43,10 +43,7 @@ pub struct Group {
 
     /// PDA bump for the group account itself
     account_bump: u8,
-    /// PDA bump for the group authority (used as freeze & burn delegate)
-    authority_bump: u8,
 }
-
 
 impl Group {
     pub fn new(
@@ -59,12 +56,11 @@ impl Group {
         mut not_change_config_threshold: FractionalThreshold,
         minimum_member_count: u32,
         minimum_vote_count: u32,
-        max_member_weight:u32,
+        max_member_weight: u32,
         member_count: u32,
         default_timelock_offset: u32,
         expiry_offset: u32,
         account_bump: u8,
-        authority_bump: u8,
     ) -> Result<Self> {
         // Threshold checks
         add_threshold.is_valid()?;
@@ -104,8 +100,7 @@ impl Group {
             member_count,
             default_timelock_offset,
             expiry_offset,
-            account_bump,
-            authority_bump,
+            account_bump
         };
 
         Ok(group)
@@ -119,10 +114,6 @@ impl Group {
         self.account_bump
     }
 
-    pub fn get_authority_bump(&self) -> u8 {
-        self.authority_bump
-    }
-
     pub fn get_add_threshold(&self) -> FractionalThreshold {
         self.add_threshold
     }
@@ -130,7 +121,8 @@ impl Group {
     pub fn set_add_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.add_threshold = threshold;
-        self.add_threshold.normalize_other(&mut self.not_add_threshold)?;
+        self.add_threshold
+            .normalize_other(&mut self.not_add_threshold)?;
         Ok(())
     }
 
@@ -141,7 +133,8 @@ impl Group {
     pub fn set_not_add_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.not_add_threshold = threshold;
-        self.add_threshold.normalize_other(&mut self.not_add_threshold)?;
+        self.add_threshold
+            .normalize_other(&mut self.not_add_threshold)?;
         Ok(())
     }
 
@@ -152,7 +145,8 @@ impl Group {
     pub fn set_remove_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.remove_threshold = threshold;
-        self.remove_threshold.normalize_other(&mut self.not_remove_threshold)?;
+        self.remove_threshold
+            .normalize_other(&mut self.not_remove_threshold)?;
         Ok(())
     }
 
@@ -163,7 +157,8 @@ impl Group {
     pub fn set_not_remove_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.not_remove_threshold = threshold;
-        self.remove_threshold.normalize_other(&mut self.not_remove_threshold)?;
+        self.remove_threshold
+            .normalize_other(&mut self.not_remove_threshold)?;
         Ok(())
     }
 
@@ -183,7 +178,10 @@ impl Group {
         self.not_change_config_threshold
     }
 
-    pub fn set_not_change_config_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
+    pub fn set_not_change_config_threshold(
+        &mut self,
+        threshold: FractionalThreshold,
+    ) -> Result<()> {
         threshold.is_valid()?;
         self.not_change_config_threshold = threshold;
         self.change_config_threshold
@@ -192,20 +190,24 @@ impl Group {
     }
 
     pub fn increment_member_count(&mut self) -> Result<()> {
-        self.member_count = self.member_count.checked_add(1).
-        ok_or(ProgramError::ArithmeticOverflow)?;
+        self.member_count = self
+            .member_count
+            .checked_add(1)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
         Ok(())
     }
 
     pub fn decrement_member_count(&mut self) -> Result<()> {
-        let new_count = self.member_count.checked_sub(1).
-        ok_or(ProgramError::ArithmeticOverflow)?;
+        let new_count = self
+            .member_count
+            .checked_sub(1)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
 
-        if new_count.le(&self.minimum_vote_count){
+        if new_count.le(&self.minimum_vote_count) {
             return Err(TokenError::InvalidThreshold.into());
         }
 
-        if new_count.lt(&self.minimum_member_count){
+        if new_count.lt(&self.minimum_member_count) {
             return Err(TokenError::InvalidMemberCount.into());
         }
 
@@ -242,7 +244,7 @@ impl Group {
         self.minimum_member_count
     }
 
-    pub fn get_max_member_weight(&self) -> u32{
+    pub fn get_max_member_weight(&self) -> u32 {
         self.max_member_weight
     }
 
@@ -252,19 +254,19 @@ impl Group {
         current
     }
 
-    pub fn get_proposal_index_after_stale(&self) -> u64{
+    pub fn get_proposal_index_after_stale(&self) -> u64 {
         self.proposal_index_after_stale
     }
 
-    pub fn set_proposal_index_after_stale(&mut self, proposal_index:u64){
+    pub fn set_proposal_index_after_stale(&mut self, proposal_index: u64) {
         self.proposal_index_after_stale = self.proposal_index_after_stale.max(proposal_index);
     }
 
-    pub fn get_timelock_offset(&self)->u32{
+    pub fn get_timelock_offset(&self) -> u32 {
         self.default_timelock_offset
     }
 
-    pub fn get_expiry_offset(&self)->u32{
+    pub fn get_expiry_offset(&self) -> u32 {
         self.expiry_offset
     }
 
@@ -275,5 +277,4 @@ impl Group {
     pub fn set_expiry_offset(&mut self, offset: u32) {
         self.expiry_offset = offset;
     }
-
 }

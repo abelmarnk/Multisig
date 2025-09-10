@@ -1,14 +1,14 @@
 use anchor_lang::prelude::*;
 
-use crate::{TokenError, utils::FractionalThreshold};
+use crate::{utils::FractionalThreshold, TokenError};
 
 #[account]
 #[derive(InitSpace)]
 pub struct Asset {
     asset_address: Pubkey,
 
-    use_threshold: FractionalThreshold,         
-    not_use_threshold: FractionalThreshold,     
+    use_threshold: FractionalThreshold,
+    not_use_threshold: FractionalThreshold,
 
     add_threshold: FractionalThreshold,
     not_add_threshold: FractionalThreshold,
@@ -21,7 +21,7 @@ pub struct Asset {
 
     // Constraints
     minimum_member_count: u32,
-    minimum_vote_count: u32, 
+    minimum_vote_count: u32,
 
     // PDA bumps
     account_bump: u8,
@@ -45,7 +45,6 @@ impl Asset {
         account_bump: u8,
         authority_bump: u8,
     ) -> Result<Self> {
-
         require_gt!(minimum_vote_count, 0, TokenError::InvalidThreshold);
         require_gt!(minimum_member_count, 0, TokenError::InvalidMemberCount);
 
@@ -106,56 +105,67 @@ impl Asset {
     pub fn set_use_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.use_threshold = threshold;
-        self.use_threshold.normalize_other(&mut self.not_use_threshold)?;
+        self.use_threshold
+            .normalize_other(&mut self.not_use_threshold)?;
         Ok(())
     }
 
     pub fn set_not_use_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.not_use_threshold = threshold;
-        self.use_threshold.normalize_other(&mut self.not_use_threshold)?;
+        self.use_threshold
+            .normalize_other(&mut self.not_use_threshold)?;
         Ok(())
     }
 
     pub fn set_add_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.add_threshold = threshold;
-        self.add_threshold.normalize_other(&mut self.not_add_threshold)?;
+        self.add_threshold
+            .normalize_other(&mut self.not_add_threshold)?;
         Ok(())
     }
 
     pub fn set_not_add_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.not_add_threshold = threshold;
-        self.add_threshold.normalize_other(&mut self.not_add_threshold)?;
+        self.add_threshold
+            .normalize_other(&mut self.not_add_threshold)?;
         Ok(())
     }
 
     pub fn set_remove_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.remove_threshold = threshold;
-        self.remove_threshold.normalize_other(&mut self.not_remove_threshold)?;
+        self.remove_threshold
+            .normalize_other(&mut self.not_remove_threshold)?;
         Ok(())
     }
 
     pub fn set_not_remove_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.not_remove_threshold = threshold;
-        self.remove_threshold.normalize_other(&mut self.not_remove_threshold)?;
+        self.remove_threshold
+            .normalize_other(&mut self.not_remove_threshold)?;
         Ok(())
     }
 
     pub fn set_change_config_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.change_config_threshold = threshold;
-        self.change_config_threshold.normalize_other(&mut self.not_change_config_threshold)?;
+        self.change_config_threshold
+            .normalize_other(&mut self.not_change_config_threshold)?;
         Ok(())
     }
 
-    pub fn set_not_change_config_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
+    pub fn set_not_change_config_threshold(
+        &mut self,
+        threshold: FractionalThreshold,
+    ) -> Result<()> {
         threshold.is_valid()?;
         self.not_change_config_threshold = threshold;
-        self.change_config_threshold.normalize_other(&mut self.not_change_config_threshold)?;
+        self.change_config_threshold
+            .normalize_other(&mut self.not_change_config_threshold)?;
         Ok(())
     }
 
@@ -175,9 +185,11 @@ impl Asset {
         self.authority_bump
     }
 
-    pub fn increment_member_count(&mut self)->Result<()>{
-        self.member_count = self.member_count.checked_add(1).
-            ok_or(ProgramError::ArithmeticOverflow)?;
+    pub fn increment_member_count(&mut self) -> Result<()> {
+        self.member_count = self
+            .member_count
+            .checked_add(1)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
         Ok(())
     }
 

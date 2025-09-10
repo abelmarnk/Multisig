@@ -1,8 +1,5 @@
-use anchor_lang::{
-    prelude::*, 
-    solana_program::hash::HASH_BYTES as HASH_BYTES_LENGTH
-};
 use crate::state::*;
+use anchor_lang::{prelude::*, solana_program::hash::HASH_BYTES as HASH_BYTES_LENGTH};
 
 // Instruction arguments struct for CreateNormalProposalInstructionAccounts
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -41,7 +38,7 @@ pub struct CreateNormalProposalInstructionAccounts<'info> {
     pub proposer: Signer<'info>,
 
     /// Proof proposer is a member
-     #[account(
+    #[account(
         seeds = [b"member", group.key().as_ref(), proposer.key.as_ref()],
         bump = proposer_group_account.get_account_bump()
     )]
@@ -88,9 +85,17 @@ pub fn create_normal_proposal_handler(
         TokenError::TooManyAssets
     );
 
-    require_eq!(asset_keys.len(), asset_indices.len(), TokenError::LengthMismatch);
+    require_eq!(
+        asset_keys.len(),
+        asset_indices.len(),
+        TokenError::LengthMismatch
+    );
 
-    require_eq!(asset_indices.len(), authority_bumps.len(), TokenError::LengthMismatch);
+    require_eq!(
+        asset_indices.len(),
+        authority_bumps.len(),
+        TokenError::LengthMismatch
+    );
 
     // Ensure sorted + no duplicates
     for i in 1..asset_keys.len() {
@@ -102,7 +107,9 @@ pub fn create_normal_proposal_handler(
 
     // Construct ProposalAssets
     let proposal_assets: Vec<ProposalAsset> = asset_keys
-        .into_iter().zip(asset_indices.into_iter()).zip(authority_bumps.into_iter())
+        .into_iter()
+        .zip(asset_indices.into_iter())
+        .zip(authority_bumps.into_iter())
         .map(|((key, index), bump)| ProposalAsset::new(index, bump, key))
         .collect();
 
@@ -117,7 +124,7 @@ pub fn create_normal_proposal_handler(
         proposal_assets,
         ctx.bumps.proposal,
         group.get_and_increment_proposal_index(),
-        instruction_hash, 
+        instruction_hash,
         timelock_offset.unwrap_or(group.get_timelock_offset()),
         expiry_offset.unwrap_or(group.get_expiry_offset()),
     )?);
@@ -193,17 +200,17 @@ pub fn create_config_proposal_handler(
     );
 
     // Resolve offsets: use provided override or group defaults
-    let expiry = expiry_offset.unwrap_or( group.get_expiry_offset());
+    let expiry = expiry_offset.unwrap_or(group.get_expiry_offset());
 
-    let timelock = timelock_offset.unwrap_or( group.get_timelock_offset());
+    let timelock = timelock_offset.unwrap_or(group.get_timelock_offset());
 
     // If this is a group-targeted change, construct a group ConfigProposal
     if config_change.is_group_change() {
         let new_proposal = ConfigProposal::new(
-            proposer_key,             
-            proposal_seed,            
-            group.key(),              
-            ctx.bumps.proposal,      
+            proposer_key,
+            proposal_seed,
+            group.key(),
+            ctx.bumps.proposal,
             group.get_and_increment_proposal_index(),
             timelock,
             expiry,
@@ -215,23 +222,23 @@ pub fn create_config_proposal_handler(
         return Ok(());
     } else {
         // Asset proposal
-        let asset = ctx.accounts.asset.as_ref().
-            ok_or(TokenError::AssetNotProvided)?;
+        let asset = ctx
+            .accounts
+            .asset
+            .as_ref()
+            .ok_or(TokenError::AssetNotProvided)?;
 
-        proposal.set_inner(
-            ConfigProposal::new(
-                proposer_key,             
-                proposal_seed,            
-                group.key(),              
-                ctx.bumps.proposal,      
-                group.get_and_increment_proposal_index(),
-                timelock,
-                expiry,
-                ProposalTarget::Asset(*asset.get_asset_address()),
-                config_change,
-            )?
-        );
-
+        proposal.set_inner(ConfigProposal::new(
+            proposer_key,
+            proposal_seed,
+            group.key(),
+            ctx.bumps.proposal,
+            group.get_and_increment_proposal_index(),
+            timelock,
+            expiry,
+            ProposalTarget::Asset(*asset.get_asset_address()),
+            config_change,
+        )?);
     };
 
     Ok(())
