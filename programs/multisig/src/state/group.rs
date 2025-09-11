@@ -1,4 +1,4 @@
-use crate::{utils::FractionalThreshold, TokenError};
+use crate::{utils::FractionalThreshold, MultisigError};
 use anchor_lang::prelude::*;
 
 #[account]
@@ -77,10 +77,10 @@ impl Group {
 
         // Member count checks
         if minimum_vote_count >= member_count {
-            return Err(error!(TokenError::InvalidThreshold));
+            return Err(error!(MultisigError::InvalidThreshold));
         }
         if minimum_member_count > member_count {
-            return Err(error!(TokenError::InvalidThreshold));
+            return Err(error!(MultisigError::InvalidThreshold));
         }
 
         // Build group
@@ -106,14 +106,17 @@ impl Group {
         Ok(group)
     }
 
+        #[inline(always)]
     pub fn get_group_seed(&self) -> &Pubkey {
         &self.group_seed
     }
 
+    #[inline(always)]
     pub fn get_account_bump(&self) -> u8 {
         self.account_bump
     }
 
+    #[inline(always)]
     pub fn get_add_threshold(&self) -> FractionalThreshold {
         self.add_threshold
     }
@@ -126,6 +129,7 @@ impl Group {
         Ok(())
     }
 
+    #[inline(always)]
     pub fn get_not_add_threshold(&self) -> FractionalThreshold {
         self.not_add_threshold
     }
@@ -138,6 +142,7 @@ impl Group {
         Ok(())
     }
 
+    #[inline(always)]
     pub fn get_remove_threshold(&self) -> FractionalThreshold {
         self.remove_threshold
     }
@@ -150,6 +155,7 @@ impl Group {
         Ok(())
     }
 
+    #[inline(always)]
     pub fn get_not_remove_threshold(&self) -> FractionalThreshold {
         self.not_remove_threshold
     }
@@ -162,6 +168,7 @@ impl Group {
         Ok(())
     }
 
+    #[inline(always)]
     pub fn get_change_config_threshold(&self) -> FractionalThreshold {
         self.change_config_threshold
     }
@@ -174,6 +181,7 @@ impl Group {
         Ok(())
     }
 
+    #[inline(always)]
     pub fn get_not_change_config_threshold(&self) -> FractionalThreshold {
         self.not_change_config_threshold
     }
@@ -189,26 +197,26 @@ impl Group {
         Ok(())
     }
 
+    #[inline(always)]
     pub fn increment_member_count(&mut self) -> Result<()> {
         self.member_count = self
             .member_count
             .checked_add(1)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
+            .ok_or(MultisigError::TooManyMembers)?;
         Ok(())
     }
 
     pub fn decrement_member_count(&mut self) -> Result<()> {
         let new_count = self
             .member_count
-            .checked_sub(1)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
+            .saturating_sub(1);
 
         if new_count.le(&self.minimum_vote_count) {
-            return Err(TokenError::InvalidThreshold.into());
+            return Err(MultisigError::InvalidThreshold.into());
         }
 
         if new_count.lt(&self.minimum_member_count) {
-            return Err(TokenError::InvalidMemberCount.into());
+            return Err(MultisigError::InvalidMemberCount.into());
         }
 
         self.member_count = new_count;
@@ -216,65 +224,79 @@ impl Group {
         Ok(())
     }
 
+    #[inline(always)]
     pub fn get_member_count(&self) -> u32 {
         self.member_count
     }
 
+    #[inline(always)]
     pub fn set_minimum_vote_count(&mut self, count: u32) -> Result<()> {
         if count.ge(&self.member_count) {
-            return Err(error!(crate::TokenError::InvalidThreshold));
+            return Err(error!(crate::MultisigError::InvalidThreshold));
         }
         self.minimum_vote_count = count;
         Ok(())
     }
 
+    #[inline(always)]
     pub fn get_minimum_vote_count(&self) -> u32 {
         self.minimum_vote_count
     }
 
+    #[inline(always)]
     pub fn set_minimum_member_count(&mut self, count: u32) -> Result<()> {
         if count.lt(&self.member_count) {
-            return Err(error!(crate::TokenError::InvalidMemberCount));
+            return Err(error!(crate::MultisigError::InvalidMemberCount));
         }
         self.minimum_member_count = count;
         Ok(())
     }
 
+    #[inline(always)]
     pub fn get_minimum_member_count(&self) -> u32 {
         self.minimum_member_count
     }
 
+    #[inline(always)]
     pub fn get_max_member_weight(&self) -> u32 {
         self.max_member_weight
     }
 
-    pub fn get_and_increment_proposal_index(&mut self) -> u64 {
+    pub fn get_and_increment_proposal_index(&mut self) -> Result<u64> {
         let current = self.next_proposal_index;
-        self.next_proposal_index = self.next_proposal_index.wrapping_add(1);
-        current
+        self.next_proposal_index = self.next_proposal_index.checked_add(1).ok_or(ProgramError::ArithmeticOverflow)?;
+
+        Ok(current)
     }
 
+    #[inline(always)]
     pub fn get_proposal_index_after_stale(&self) -> u64 {
         self.proposal_index_after_stale
     }
 
     pub fn set_proposal_index_after_stale(&mut self, proposal_index: u64) {
-        self.proposal_index_after_stale = self.proposal_index_after_stale.max(proposal_index);
+        self.proposal_index_after_stale = self.next_proposal_index.
+            min(self.proposal_index_after_stale.max(proposal_index));
     }
 
+    #[inline(always)]
     pub fn get_timelock_offset(&self) -> u32 {
         self.default_timelock_offset
     }
 
+    #[inline(always)]
     pub fn get_expiry_offset(&self) -> u32 {
         self.expiry_offset
     }
 
+    #[inline(always)]
     pub fn set_timelock_offset(&mut self, offset: u32) {
         self.default_timelock_offset = offset;
     }
 
+    #[inline(always)]
     pub fn set_expiry_offset(&mut self, offset: u32) {
         self.expiry_offset = offset;
     }
+
 }

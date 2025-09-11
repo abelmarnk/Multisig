@@ -7,7 +7,7 @@ use crate::{utils::fractional_threshold::FractionalThreshold, Permissions};
 
 use crate::state::{
     asset::Asset,
-    error::TokenError,
+    error::MultisigError,
     group::Group,
     member::{AssetMember, GroupMember},
 };
@@ -164,7 +164,7 @@ pub fn add_asset_mint_handler(
     let adder = &ctx.accounts.adder;
 
     // Ensure adder has the add_asset permission
-    require!(adder.has_add_asset(), TokenError::InsufficientPermissions);
+    require!(adder.has_add_asset(), MultisigError::InsufficientPermissions);
 
     // Initialize the Asset account
     let mint_key = ctx.accounts.mint.key();
@@ -222,9 +222,9 @@ pub fn add_asset_mint_handler(
         ctx.accounts
             .mint
             .mint_authority
-            .ok_or(TokenError::AuthorityNotProvided)?,
+            .ok_or(MultisigError::AuthorityNotProvided)?,
         *ctx.accounts.asset_authority.key,
-        TokenError::InvalidMintMintAuthority
+        MultisigError::InvalidMintMintAuthority
     );
 
     match ctx.accounts.mint.freeze_authority.as_ref() {
@@ -232,7 +232,7 @@ pub fn add_asset_mint_handler(
             require_keys_eq!(
                 *freeze_authority,
                 *ctx.accounts.asset_authority.key,
-                TokenError::InvalidMintMintAuthority
+                MultisigError::InvalidMintMintAuthority
             );
         }
         COption::None => {}
@@ -352,7 +352,7 @@ pub fn add_asset_token_handler(
 
     // Ensure adder has the add_asset permission
     let adder = &ctx.accounts.adder;
-    require!(adder.has_add_asset(), TokenError::InsufficientPermissions);
+    require!(adder.has_add_asset(), MultisigError::InsufficientPermissions);
 
     // Initialize Asset
     let token_key = ctx.accounts.token.key();
@@ -407,20 +407,20 @@ pub fn add_asset_token_handler(
     // Token account must be initialized
     require!(
         ctx.accounts.token.state == AccountState::Initialized,
-        TokenError::InvalidAccountState
+        MultisigError::InvalidAccountState
     );
 
     // Owner must equal asset_authority
     require_keys_eq!(
         ctx.accounts.token.owner,
         *ctx.accounts.asset_authority.key,
-        TokenError::InvalidTokenOwner
+        MultisigError::InvalidTokenOwner
     );
 
     // Delegate must be None
     require!(
         ctx.accounts.token.delegate.is_none(),
-        TokenError::InvalidTokenDelegate
+        MultisigError::InvalidTokenDelegate
     );
 
     // Close authority must be None or asset_authority
@@ -429,7 +429,7 @@ pub fn add_asset_token_handler(
             require_keys_eq!(
                 close_auth,
                 *ctx.accounts.asset_authority.key,
-                TokenError::InvalidCloseAuthority
+                MultisigError::InvalidCloseAuthority
             );
         }
         COption::None => {}

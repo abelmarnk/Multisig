@@ -65,19 +65,19 @@ pub fn add_group_member_handler(
     require_keys_eq!(
         ctx.accounts.proposer.key(),
         *proposal.get_proposer(),
-        TokenError::InvalidProposer
+        MultisigError::InvalidProposer
     );
 
     // Validate proposal
     require!(
         proposal.get_state() == ProposalState::Passed,
-        TokenError::ProposalNotPassed
+        MultisigError::ProposalNotPassed
     );
 
     require_gte!(
         proposal.get_proposal_index(),
         group.get_proposal_index_after_stale(),
-        TokenError::ProposalStale
+        MultisigError::ProposalStale
     );
 
     group.set_proposal_index_after_stale(
@@ -94,7 +94,7 @@ pub fn add_group_member_handler(
             weight,
             permissions,
         } => {
-            require!(*member == new_member, TokenError::InvalidMember);
+            require!(*member == new_member, MultisigError::InvalidMember);
 
             ctx.accounts.new_group_member.set_inner(GroupMember::new(
                 new_member,
@@ -106,7 +106,7 @@ pub fn add_group_member_handler(
 
             group.increment_member_count()?;
         }
-        _ => return err!(TokenError::InvalidConfigChange),
+        _ => return Err(MultisigError::InvalidConfigChange.into()),
     }
 
     Ok(())
@@ -181,18 +181,18 @@ pub fn add_asset_member_handler(
     require_keys_eq!(
         ctx.accounts.proposer.key(),
         *proposal.get_proposer(),
-        TokenError::InvalidProposer
+        MultisigError::InvalidProposer
     );
 
     // Validate proposal
     require!(
         proposal.get_state() == ProposalState::Passed,
-        TokenError::ProposalNotPassed
+        MultisigError::ProposalNotPassed
     );
     require_gte!(
         proposal.get_proposal_index(),
         group.get_proposal_index_after_stale(),
-        TokenError::ProposalStale
+        MultisigError::ProposalStale
     );
 
     group.set_proposal_index_after_stale(
@@ -211,9 +211,9 @@ pub fn add_asset_member_handler(
         } => {
             require!(
                 *asset_address == *asset.get_asset_address(),
-                TokenError::InvalidAsset
+                MultisigError::InvalidAsset
             );
-            require!(*member == new_member, TokenError::InvalidMember);
+            require!(*member == new_member, MultisigError::InvalidMember);
 
             ctx.accounts.new_asset_member.set_inner(AssetMember::new(
                 new_member,
@@ -226,7 +226,7 @@ pub fn add_asset_member_handler(
 
             asset.increment_member_count()?;
         }
-        _ => return err!(TokenError::InvalidConfigChange),
+        _ => return Err(MultisigError::InvalidConfigChange.into()),
     }
 
     Ok(())

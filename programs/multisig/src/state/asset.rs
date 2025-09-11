@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::{utils::FractionalThreshold, TokenError};
+use crate::{utils::FractionalThreshold, MultisigError};
 
 #[account]
 #[derive(InitSpace)]
@@ -30,6 +30,7 @@ pub struct Asset {
 
 impl Asset {
     /// Create a new Asset with validation
+    #[inline(always)]
     pub fn new(
         asset_address: Pubkey,
         use_threshold: FractionalThreshold,
@@ -45,8 +46,8 @@ impl Asset {
         account_bump: u8,
         authority_bump: u8,
     ) -> Result<Self> {
-        require_gt!(minimum_vote_count, 0, TokenError::InvalidThreshold);
-        require_gt!(minimum_member_count, 0, TokenError::InvalidMemberCount);
+        require_gt!(minimum_vote_count, 0, MultisigError::InvalidThreshold);
+        require_gt!(minimum_member_count, 0, MultisigError::InvalidMemberCount);
 
         Ok(Self {
             asset_address,
@@ -66,38 +67,47 @@ impl Asset {
         })
     }
 
+    #[inline(always)]
     pub fn get_asset_address(&self) -> &Pubkey {
         &self.asset_address
     }
 
+    #[inline(always)]
     pub fn get_use_threshold(&self) -> FractionalThreshold {
         self.use_threshold
     }
 
+    #[inline(always)]
     pub fn get_not_use_threshold(&self) -> FractionalThreshold {
         self.not_use_threshold
     }
 
+    #[inline(always)]
     pub fn get_add_threshold(&self) -> FractionalThreshold {
         self.add_threshold
     }
 
+    #[inline(always)]
     pub fn get_not_add_threshold(&self) -> FractionalThreshold {
         self.not_add_threshold
     }
 
+    #[inline(always)]
     pub fn get_remove_threshold(&self) -> FractionalThreshold {
         self.remove_threshold
     }
 
+    #[inline(always)]
     pub fn get_not_remove_threshold(&self) -> FractionalThreshold {
         self.not_remove_threshold
     }
 
+    #[inline(always)]
     pub fn get_change_config_threshold(&self) -> FractionalThreshold {
         self.change_config_threshold
     }
 
+    #[inline(always)]
     pub fn get_not_change_config_threshold(&self) -> FractionalThreshold {
         self.not_change_config_threshold
     }
@@ -169,20 +179,24 @@ impl Asset {
         Ok(())
     }
 
-    pub fn get_minimum_member_count(&self) -> u32 {
-        self.minimum_member_count
+    #[inline(always)]
+    pub fn get_minimum_member_count(&self) -> u32 { 
+        self.minimum_member_count 
     }
 
-    pub fn get_minimum_vote_count(&self) -> u32 {
-        self.minimum_vote_count
+    #[inline(always)]
+    pub fn get_minimum_vote_count(&self) -> u32 { 
+        self.minimum_vote_count 
     }
 
-    pub fn get_account_bump(&self) -> u8 {
-        self.account_bump
+    #[inline(always)]
+    pub fn get_account_bump(&self) -> u8 { 
+        self.account_bump 
     }
 
-    pub fn get_authority_bump(&self) -> u8 {
-        self.authority_bump
+    #[inline(always)]
+    pub fn get_authority_bump(&self) -> u8 { 
+        self.authority_bump 
     }
 
     pub fn increment_member_count(&mut self) -> Result<()> {
@@ -193,25 +207,29 @@ impl Asset {
         Ok(())
     }
 
+    #[inline(always)]
     pub fn decrement_member_count(&mut self) {
         self.member_count = self.member_count.saturating_sub(1);
     }
 
-    pub fn get_member_count(&self) -> u32 {
-        self.member_count
+    #[inline(always)]
+    pub fn get_member_count(&self) -> u32 { 
+        self.member_count 
     }
 
+    #[inline(always)]
     pub fn set_minimum_vote_count(&mut self, count: u32) -> Result<()> {
         if count.ge(&self.member_count) {
-            return Err(error!(crate::TokenError::InvalidThreshold));
+            return Err(crate::MultisigError::InvalidThreshold.into());
         }
         self.minimum_vote_count = count;
         Ok(())
     }
 
+    #[inline(always)]
     pub fn set_minimum_member_count(&mut self, count: u32) -> Result<()> {
         if count.lt(&self.member_count) {
-            return Err(error!(crate::TokenError::InvalidMemberCount));
+            return Err(crate::MultisigError::InvalidMemberCount.into());
         }
         self.minimum_member_count = count;
         Ok(())

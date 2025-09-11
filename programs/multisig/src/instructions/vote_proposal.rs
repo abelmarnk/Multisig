@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 use crate::{
     state::{
         asset::Asset,
-        error::TokenError,
+        error::MultisigError,
         group::Group,
         member::AssetMember,
         proposal::{ConfigProposal, NormalProposal, ProposalState, ProposalTarget},
@@ -88,7 +88,7 @@ pub fn vote_on_normal_proposal_handler(
     // Check the proposal is still open
     require!(
         proposal.get_state() == ProposalState::Open,
-        TokenError::ProposalNotOpen
+        MultisigError::ProposalNotOpen
     );
 
     if Clock::get()?
@@ -96,7 +96,7 @@ pub fn vote_on_normal_proposal_handler(
         .gt(&proposal.get_expiration_timestamp())
     {
         proposal.set_state(ProposalState::Expired)?;
-        return Err(TokenError::ProposalExpired.into());
+        return Err(MultisigError::ProposalExpired.into());
     }
 
     let asset_index = usize::from(voting_asset_index);
@@ -104,25 +104,25 @@ pub fn vote_on_normal_proposal_handler(
     // Validate index
     require!(
         asset_index.lt(&proposal.get_assets().len()),
-        TokenError::InvalidAssetIndex
+        MultisigError::InvalidAssetIndex
     );
 
     // Validate asset and user
     require_keys_eq!(
         *proposal.get_assets()[asset_index].get_asset(),
         *asset.get_asset_address(),
-        TokenError::InvalidAsset
+        MultisigError::InvalidAsset
     );
 
     require_keys_eq!(
         asset_member.get_asset(),
         *asset.get_asset_address(),
-        TokenError::InvalidAssetMember
+        MultisigError::InvalidAssetMember
     );
     require_keys_eq!(
         asset_member.get_user(),
         voter.key(),
-        TokenError::UnauthorizedVoter
+        MultisigError::UnauthorizedVoter
     );
 
     let weight = asset_member.get_weight();
@@ -159,7 +159,7 @@ pub fn vote_on_normal_proposal_handler(
         require_keys_eq!(
             *vote_record.get_voter(),
             voter.key(),
-            TokenError::UnauthorizedVoter
+            MultisigError::UnauthorizedVoter
         );
 
         if vote_record.get_vote_choice() != vote {
@@ -274,7 +274,7 @@ pub fn vote_on_config_proposal_handler(
     // Proposal must be open
     require!(
         proposal.get_state() == ProposalState::Open,
-        TokenError::ProposalNotOpen
+        MultisigError::ProposalNotOpen
     );
 
     // Expiry check
@@ -283,19 +283,19 @@ pub fn vote_on_config_proposal_handler(
         .gt(&proposal.get_expiration_timestamp())
     {
         proposal.set_state(ProposalState::Expired)?;
-        return Err(TokenError::ProposalExpired.into());
+        return Err(MultisigError::ProposalExpired.into());
     }
 
     // Validate voter
     require_keys_eq!(
         *group_member.get_user(),
         voter.key(),
-        TokenError::UnauthorizedVoter
+        MultisigError::UnauthorizedVoter
     );
     require_keys_eq!(
         *proposal.get_group(),
         group.key(),
-        TokenError::UnexpectedGroup
+        MultisigError::UnexpectedGroup
     );
 
     // First vote?
@@ -316,27 +316,27 @@ pub fn vote_on_config_proposal_handler(
                     .accounts
                     .asset
                     .as_ref()
-                    .ok_or(TokenError::AssetNotProvided)?;
+                    .ok_or(MultisigError::AssetNotProvided)?;
                 require_keys_eq!(
                     *target_asset,
                     *asset.get_asset_address(),
-                    TokenError::UnexpectedAsset
+                    MultisigError::UnexpectedAsset
                 );
 
                 let membership = ctx
                     .accounts
                     .asset_member
                     .as_ref()
-                    .ok_or(TokenError::AssetMemberNotProvided)?;
+                    .ok_or(MultisigError::AssetMemberNotProvided)?;
                 require_keys_eq!(
                     membership.get_asset(),
                     *asset.get_asset_address(),
-                    TokenError::InvalidAssetMember
+                    MultisigError::InvalidAssetMember
                 );
                 require_keys_eq!(
                     membership.get_user(),
                     voter.key(),
-                    TokenError::UnauthorizedVoter
+                    MultisigError::UnauthorizedVoter
                 );
 
                 match vote {
@@ -364,7 +364,7 @@ pub fn vote_on_config_proposal_handler(
         require_keys_eq!(
             *vote_record.get_voter(),
             voter.key(),
-            TokenError::UnauthorizedVoter
+            MultisigError::UnauthorizedVoter
         );
 
         if vote_record.get_vote_choice() != vote {
@@ -391,27 +391,27 @@ pub fn vote_on_config_proposal_handler(
                         .accounts
                         .asset
                         .as_ref()
-                        .ok_or(TokenError::AssetNotProvided)?;
+                        .ok_or(MultisigError::AssetNotProvided)?;
                     require_keys_eq!(
                         *target_asset,
                         *asset.get_asset_address(),
-                        TokenError::UnexpectedAsset
+                        MultisigError::UnexpectedAsset
                     );
 
                     let membership = ctx
                         .accounts
                         .asset_member
                         .as_ref()
-                        .ok_or(TokenError::AssetMemberNotProvided)?;
+                        .ok_or(MultisigError::AssetMemberNotProvided)?;
                     require_keys_eq!(
                         membership.get_asset(),
                         *asset.get_asset_address(),
-                        TokenError::InvalidAssetMember
+                        MultisigError::InvalidAssetMember
                     );
                     require_keys_eq!(
                         membership.get_user(),
                         voter.key(),
-                        TokenError::UnauthorizedVoter
+                        MultisigError::UnauthorizedVoter
                     );
 
                     match vote {

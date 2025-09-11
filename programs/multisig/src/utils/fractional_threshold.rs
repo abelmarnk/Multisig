@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::TokenError;
+use crate::MultisigError;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, InitSpace)]
 pub struct FractionalThreshold {
@@ -11,7 +11,7 @@ pub struct FractionalThreshold {
 impl FractionalThreshold {
     pub fn is_valid(&self) -> Result<()> {
         if self.denominator.eq(&0) || self.numerator.ge(&self.denominator) {
-            return Err(TokenError::InvalidThreshold.into());
+            return Err(MultisigError::InvalidThreshold.into());
         }
 
         Ok(())
@@ -19,7 +19,7 @@ impl FractionalThreshold {
 
     pub fn new_from_values(numerator: u32, denominator: u32) -> Result<FractionalThreshold> {
         if denominator.eq(&0) || numerator.ge(&denominator) {
-            return Err(TokenError::InvalidThreshold.into());
+            return Err(MultisigError::InvalidThreshold.into());
         }
 
         Ok(FractionalThreshold {

@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::hash;
 
 use crate::state::{
-    error::TokenError, Group, NormalProposal, ProposalTransaction, SerializableInstruction,
+    error::MultisigError, Group, NormalProposal, ProposalTransaction, SerializableInstruction,
 };
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -55,14 +55,14 @@ pub fn create_proposal_transaction_handler(
     require_keys_eq!(
         ctx.accounts.proposer.key(),
         *proposal.get_proposer(),
-        TokenError::InvalidProposer
+        MultisigError::InvalidProposer
     );
 
     // Validate proposal is still valid
     require_gte!(
         proposal.get_proposal_index(),
         group.get_proposal_index_after_stale(),
-        TokenError::ProposalStale
+        MultisigError::ProposalStale
     );
 
     group.set_proposal_index_after_stale(
@@ -77,27 +77,27 @@ pub fn create_proposal_transaction_handler(
     let actual_hash = hash::hash(&raw_instruction).to_bytes();
     require!(
         actual_hash == *expected_hash,
-        TokenError::InvalidInstructionHash
+        MultisigError::InvalidInstructionHash
     );
 
     // Deserialize into custom struct
     let serializable_instruction: SerializableInstruction =
         SerializableInstruction::try_from_slice(&raw_instruction)
-            .map_err(|_| TokenError::InstructionDeserializationFailed)?;
+            .map_err(|_| MultisigError::InstructionDeserializationFailed)?;
 
     // Check proposal assets
     let proposal_assets = proposal.get_assets();
     require_gte!(
         serializable_instruction.accounts.len(),
         proposal_assets.len(),
-        TokenError::NotEnoughAccountKeys
+        MultisigError::NotEnoughAccountKeys
     );
 
     for proposal_asset in proposal_assets.iter() {
         let index = proposal_asset.get_index() as usize;
         let expected_key = *proposal_asset.get_asset();
         let acct_meta = &serializable_instruction.accounts[index];
-        require!(acct_meta.key == expected_key, TokenError::UnexpectedAsset);
+        require!(acct_meta.key == expected_key, MultisigError::UnexpectedAsset);
     }
 
     // Save proposal transaction

@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 #[error_code]
-pub enum TokenError {
+pub enum MultisigError {
     #[msg("Initial members must be exactly 5.")]
     InvalidInitialMembersLength,
     #[msg("Initial names must be exactly 5.")]
@@ -102,11 +102,15 @@ pub enum TokenError {
     InsufficientPermissions,
     #[msg("Invalid permissions")]
     InvalidPermissions,
+    #[msg("Too many votes")]
+    TooManyVotes,
+    #[msg("Too many members")]
+    TooManyMembers
 }
 
-// Implement Into<ProgramError> for TokenError
-impl From<TokenError> for ProgramError {
-    fn from(e: TokenError) -> Self {
+// Implement Into<ProgramError> for MultisigError
+impl From<MultisigError> for ProgramError {
+    fn from(e: MultisigError) -> Self {
         ProgramError::Custom(e as u32)
     }
 }

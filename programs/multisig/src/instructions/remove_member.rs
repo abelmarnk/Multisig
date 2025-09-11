@@ -6,7 +6,7 @@ use crate::{
         group::Group,
         member::AssetMember,
         proposal::{ConfigChange, ConfigProposal, ProposalState},
-        TokenError,
+        MultisigError,
     },
     GroupMember,
 };
@@ -59,18 +59,18 @@ pub fn remove_group_member_handler(
     require_keys_eq!(
         ctx.accounts.proposer.key(),
         *proposal.get_proposer(),
-        TokenError::InvalidProposer
+        MultisigError::InvalidProposer
     );
 
     // Validate proposal
     require!(
         proposal.get_state() == ProposalState::Passed,
-        TokenError::ProposalNotPassed
+        MultisigError::ProposalNotPassed
     );
     require_gte!(
         proposal.get_proposal_index(),
         group.get_proposal_index_after_stale(),
-        TokenError::ProposalStale
+        MultisigError::ProposalStale
     );
 
     group.set_proposal_index_after_stale(
@@ -86,13 +86,13 @@ pub fn remove_group_member_handler(
         } => {
             require!(
                 *target_member == *ctx.accounts.group_member_account.get_user(),
-                TokenError::InvalidMember
+                MultisigError::InvalidMember
             );
 
             // Decrement group member count
             group.decrement_member_count()?;
         }
-        _ => return Err(TokenError::InvalidConfigChange.into()),
+        _ => return Err(MultisigError::InvalidConfigChange.into()),
     }
 
     Ok(())
@@ -157,20 +157,20 @@ pub fn remove_asset_member_handler(
     require_keys_eq!(
         ctx.accounts.proposer.key(),
         *proposal.get_proposer(),
-        TokenError::InvalidProposer
+        MultisigError::InvalidProposer
     );
 
     // Validate proposal state
     require!(
         proposal.get_state() == ProposalState::Passed,
-        TokenError::ProposalNotPassed
+        MultisigError::ProposalNotPassed
     );
 
     // Ensure proposal is not stale
     require_gte!(
         proposal.get_proposal_index(),
         group.get_proposal_index_after_stale(),
-        TokenError::ProposalStale
+        MultisigError::ProposalStale
     );
 
     // Advance group's stale index
@@ -190,24 +190,24 @@ pub fn remove_asset_member_handler(
             require_keys_eq!(
                 *asset_address,
                 *asset.get_asset_address(),
-                TokenError::InvalidAsset
+                MultisigError::InvalidAsset
             );
 
             // Validate the asset_member PDA points to expected member and asset
             require_keys_eq!(
                 asset_member.get_asset(),
                 *asset_address,
-                TokenError::InvalidAsset
+                MultisigError::InvalidAsset
             );
             require_keys_eq!(
                 asset_member.get_user(),
                 *target_member,
-                TokenError::InvalidMember
+                MultisigError::InvalidMember
             );
 
             asset.decrement_member_count();
         }
-        _ => return Err(TokenError::InvalidConfigChange.into()),
+        _ => return Err(MultisigError::InvalidConfigChange.into()),
     }
 
     Ok(())

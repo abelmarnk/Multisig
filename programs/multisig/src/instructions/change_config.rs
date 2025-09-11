@@ -37,19 +37,19 @@ pub fn change_group_config_handler(
     require_keys_eq!(
         ctx.accounts.proposer.key(),
         *proposal.get_proposer(),
-        TokenError::InvalidProposer
+        MultisigError::InvalidProposer
     );
 
     // Validate proposal
     require!(
         proposal.get_state() == ProposalState::Passed,
-        TokenError::ProposalNotPassed
+        MultisigError::ProposalNotPassed
     );
 
     require_gte!(
         proposal.get_proposal_index(),
         group.get_proposal_index_after_stale(),
-        TokenError::ProposalStale
+        MultisigError::ProposalStale
     );
 
     group.set_proposal_index_after_stale(
@@ -71,9 +71,9 @@ pub fn change_group_config_handler(
             }
             ConfigType::MinimumMemberCount(count) => group.set_minimum_member_count(*count)?,
             ConfigType::MinimumVoteCount(count) => group.set_minimum_vote_count(*count)?,
-            _ => return Err(TokenError::UnexpectedConfigChange.into()),
+            _ => return Err(MultisigError::UnexpectedConfigChange.into()),
         },
-        _ => return Err(TokenError::InvalidConfigChange.into()),
+        _ => return Err(MultisigError::InvalidConfigChange.into()),
     }
 
     Ok(())
@@ -117,13 +117,13 @@ pub fn change_asset_config_handler(
     require_keys_eq!(
         ctx.accounts.proposer.key(),
         *proposal.get_proposer(),
-        TokenError::InvalidProposer
+        MultisigError::InvalidProposer
     );
 
     // Validate proposal
     require!(
         proposal.get_state() == ProposalState::Passed,
-        TokenError::ProposalNotPassed
+        MultisigError::ProposalNotPassed
     );
 
     match proposal.get_config_change() {
@@ -133,7 +133,7 @@ pub fn change_asset_config_handler(
         } => {
             require!(
                 *asset_key == *asset.get_asset_address(),
-                TokenError::InvalidAsset
+                MultisigError::InvalidAsset
             );
 
             match config_type {
@@ -155,7 +155,7 @@ pub fn change_asset_config_handler(
                 ConfigType::MinimumVoteCount(count) => asset.set_minimum_vote_count(*count)?,
             }
         }
-        _ => return err!(TokenError::InvalidConfigChange),
+        _ => return Err(MultisigError::InvalidConfigChange.into()),
     }
 
     Ok(())

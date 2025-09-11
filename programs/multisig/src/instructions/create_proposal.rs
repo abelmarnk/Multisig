@@ -75,33 +75,33 @@ pub fn create_normal_proposal_handler(
     // Verify proposer owns membership asset
     require!(
         ctx.accounts.proposer_group_account.has_propose(),
-        TokenError::InsufficientPermissions
+        MultisigError::InsufficientPermissions
     );
 
     // Verify asset count constraint
     require_gte!(
         constants::MAX_ASSET_USE,
         asset_keys.len(),
-        TokenError::TooManyAssets
+        MultisigError::TooManyAssets
     );
 
     require_eq!(
         asset_keys.len(),
         asset_indices.len(),
-        TokenError::LengthMismatch
+        MultisigError::LengthMismatch
     );
 
     require_eq!(
         asset_indices.len(),
         authority_bumps.len(),
-        TokenError::LengthMismatch
+        MultisigError::LengthMismatch
     );
 
     // Ensure sorted + no duplicates
     for i in 1..asset_keys.len() {
         require!(
             asset_keys[i - 1] < asset_keys[i],
-            TokenError::AssetsNotSortedOrDuplicate
+            MultisigError::AssetsNotSortedOrDuplicate
         );
     }
 
@@ -123,7 +123,7 @@ pub fn create_normal_proposal_handler(
         group.key(),
         proposal_assets,
         ctx.bumps.proposal,
-        group.get_and_increment_proposal_index(),
+        group.get_and_increment_proposal_index()?,
         instruction_hash,
         timelock_offset.unwrap_or(group.get_timelock_offset()),
         expiry_offset.unwrap_or(group.get_expiry_offset()),
@@ -196,7 +196,7 @@ pub fn create_config_proposal_handler(
     // Permission: proposer must have propose permission
     require!(
         proposer_member.has_propose(),
-        TokenError::InsufficientPermissions
+        MultisigError::InsufficientPermissions
     );
 
     // Resolve offsets: use provided override or group defaults
@@ -211,7 +211,7 @@ pub fn create_config_proposal_handler(
             proposal_seed,
             group.key(),
             ctx.bumps.proposal,
-            group.get_and_increment_proposal_index(),
+            group.get_and_increment_proposal_index()?,
             timelock,
             expiry,
             ProposalTarget::Group,
@@ -226,14 +226,14 @@ pub fn create_config_proposal_handler(
             .accounts
             .asset
             .as_ref()
-            .ok_or(TokenError::AssetNotProvided)?;
+            .ok_or(MultisigError::AssetNotProvided)?;
 
         proposal.set_inner(ConfigProposal::new(
             proposer_key,
             proposal_seed,
             group.key(),
             ctx.bumps.proposal,
-            group.get_and_increment_proposal_index(),
+            group.get_and_increment_proposal_index()?,
             timelock,
             expiry,
             ProposalTarget::Asset(*asset.get_asset_address()),

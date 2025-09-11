@@ -1,4 +1,4 @@
-use crate::state::{error::TokenError, group::Group, ProposalTransaction};
+use crate::state::{error::MultisigError, group::Group, ProposalTransaction};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::solana_program::program::invoke_signed;
@@ -20,7 +20,7 @@ pub fn execute_proposal_transaction_handler(
     require_gte!(
         Clock::get()?.unix_timestamp,
         proposal_transaction.get_valid_from(),
-        TokenError::TransactionNotRipe
+        MultisigError::TransactionNotRipe
     );
 
     // The actual instruction that was stored previously
