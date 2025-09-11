@@ -93,19 +93,19 @@ pub struct AddAssetMintInstructionAccounts<'info> {
         seeds = [b"member", group.key().as_ref(), args.member_key_1.as_ref()],
         bump = group_member_1.get_account_bump()
     )]
-    pub group_member_1: Account<'info, GroupMember>,
+    pub group_member_1: Box<Account<'info, GroupMember>>,
 
     #[account(
         seeds = [b"member", group.key().as_ref(), args.member_key_2.as_ref()],
         bump = group_member_2.get_account_bump()
     )]
-    pub group_member_2: Account<'info, GroupMember>,
+    pub group_member_2: Box<Account<'info, GroupMember>>,
 
     #[account(
         seeds = [b"member", group.key().as_ref(), args.member_key_3.as_ref()],
         bump = group_member_3.get_account_bump()
     )]
-    pub group_member_3: Account<'info, GroupMember>,
+    pub group_member_3: Box<Account<'info, GroupMember>>,
 
     #[account(
         init,
@@ -114,7 +114,7 @@ pub struct AddAssetMintInstructionAccounts<'info> {
         seeds = [b"asset-member", group.key().as_ref(), mint.key().as_ref(), args.member_key_1.as_ref()],
         bump
     )]
-    pub asset_member_1: Account<'info, AssetMember>,
+    pub asset_member_1: Box<Account<'info, AssetMember>>,
 
     #[account(
         init,
@@ -123,7 +123,7 @@ pub struct AddAssetMintInstructionAccounts<'info> {
         seeds = [b"asset-member", group.key().as_ref(), mint.key().as_ref(), args.member_key_2.as_ref()],
         bump
     )]
-    pub asset_member_2: Account<'info, AssetMember>,
+    pub asset_member_2: Box<Account<'info, AssetMember>>,
 
     #[account(
         init,
@@ -132,7 +132,7 @@ pub struct AddAssetMintInstructionAccounts<'info> {
         seeds = [b"asset-member", group.key().as_ref(), mint.key().as_ref(), args.member_key_3.as_ref()],
         bump
     )]
-    pub asset_member_3: Account<'info, AssetMember>,
+    pub asset_member_3: Box<Account<'info, AssetMember>>,
 
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
@@ -142,7 +142,7 @@ pub fn add_asset_mint_handler(
     ctx: Context<AddAssetMintInstructionAccounts>,
     args: AddAssetMintInstructionArgs,
 ) -> Result<()> {
-    // Destructure the arguments at the beginning
+
     let AddAssetMintInstructionArgs {
         member_key_1,
         member_key_2,
@@ -208,6 +208,7 @@ pub fn add_asset_mint_handler(
     {
         (*asset_member).set_inner(AssetMember::new(
             key,
+            ctx.accounts.group.key(),
             *asset_acc.get_asset_address(),
             permissions,
             weight,
@@ -227,6 +228,7 @@ pub fn add_asset_mint_handler(
         MultisigError::InvalidMintMintAuthority
     );
 
+    // If the freeze authority is not set ignore
     match ctx.accounts.mint.freeze_authority.as_ref() {
         COption::Some(freeze_authority) => {
             require_keys_eq!(
@@ -235,7 +237,7 @@ pub fn add_asset_mint_handler(
                 MultisigError::InvalidMintMintAuthority
             );
         }
-        COption::None => {}
+        COption::None => {} // Ok
     }
 
     Ok(())
@@ -266,19 +268,19 @@ pub struct AddAssetTokenInstructionAccounts<'info> {
         seeds = [b"member", group.key().as_ref(), args.member_key_1.as_ref()],
         bump = group_member_1.get_account_bump()
     )]
-    pub group_member_1: Account<'info, GroupMember>,
+    pub group_member_1: Box<Account<'info, GroupMember>>,
 
     #[account(
         seeds = [b"member", group.key().as_ref(), args.member_key_2.as_ref()],
         bump = group_member_2.get_account_bump()
     )]
-    pub group_member_2: Account<'info, GroupMember>,
+    pub group_member_2: Box<Account<'info, GroupMember>>,
 
     #[account(
         seeds = [b"member", group.key().as_ref(), args.member_key_3.as_ref()],
         bump = group_member_3.get_account_bump()
     )]
-    pub group_member_3: Account<'info, GroupMember>,
+    pub group_member_3: Box<Account<'info, GroupMember>>,
 
     #[account(
         init,
@@ -303,7 +305,7 @@ pub struct AddAssetTokenInstructionAccounts<'info> {
         seeds = [b"asset-member", group.key().as_ref(), token.key().as_ref(), args.member_key_1.as_ref()],
         bump
     )]
-    pub asset_member_1: Account<'info, AssetMember>,
+    pub asset_member_1: Box<Account<'info, AssetMember>>,
 
     #[account(
         init,
@@ -312,7 +314,7 @@ pub struct AddAssetTokenInstructionAccounts<'info> {
         seeds = [b"asset-member", group.key().as_ref(), token.key().as_ref(), args.member_key_2.as_ref()],
         bump
     )]
-    pub asset_member_2: Account<'info, AssetMember>,
+    pub asset_member_2: Box<Account<'info, AssetMember>>,
 
     #[account(
         init,
@@ -321,7 +323,7 @@ pub struct AddAssetTokenInstructionAccounts<'info> {
         seeds = [b"asset-member", group.key().as_ref(), token.key().as_ref(), args.member_key_3.as_ref()],
         bump
     )]
-    pub asset_member_3: Account<'info, AssetMember>,
+    pub asset_member_3: Box<Account<'info, AssetMember>>,
 
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
@@ -331,7 +333,7 @@ pub fn add_asset_token_handler(
     ctx: Context<AddAssetTokenInstructionAccounts>,
     args: AddAssetTokenInstructionArgs,
 ) -> Result<()> {
-    // Destructure the arguments at the beginning
+
     let AddAssetTokenInstructionArgs {
         member_key_1,
         member_key_2,
@@ -396,6 +398,7 @@ pub fn add_asset_token_handler(
     {
         (*asset_member).set_inner(AssetMember::new(
             key,
+            ctx.accounts.group.key(),
             *asset_acc.get_asset_address(),
             permissions,
             weight,
@@ -432,7 +435,7 @@ pub fn add_asset_token_handler(
                 MultisigError::InvalidCloseAuthority
             );
         }
-        COption::None => {}
+        COption::None => {} // Ok
     }
 
     Ok(())

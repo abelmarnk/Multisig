@@ -119,4 +119,39 @@ pub mod multisig {
     ) -> Result<()> {
         vote_on_config_proposal_handler(ctx, args)
     }
+
+    /// Instruction to close a stale proposal transaction
+    pub fn close_proposal_transaction_instruction(
+        ctx: Context<CloseProposalTransactionInstructionAccounts>,
+    ) -> Result<()> {
+        close_proposal_transaction_handler(ctx)
+    }
+
+    /// Instruction to close a failed or expired config proposal
+    pub fn close_proposal_instruction(
+        ctx: Context<CloseProposalInstructionAccounts>,
+    ) -> Result<()> {
+        close_proposal_handler(ctx)
+    }
+
+    /// Instruction to close an asset member account once its group member has been removed
+    pub fn close_asset_member_instruction(
+        ctx: Context<CloseAssetMemberInstructionAccounts>,
+    ) -> Result<()> {
+        close_asset_member_handler(ctx)
+    }
+
+        /// Instruction to close a normal proposal vote record
+    pub fn close_normal_vote_record_instruction(
+        ctx: Context<CloseNormalVoteRecordInstructionAccounts>,
+    ) -> Result<()> {
+        close_normal_vote_record_handler(ctx)
+    }
+
+    /// Instruction to close a config proposal vote record
+    pub fn close_config_vote_record_instruction(
+        ctx: Context<CloseConfigVoteRecordInstructionAccounts>,
+    ) -> Result<()> {
+        close_config_vote_record_handler(ctx)
+    }
 }

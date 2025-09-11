@@ -54,7 +54,8 @@ pub struct AddGroupMemberInstructionAccounts<'info> {
 
 pub fn add_group_member_handler(
     ctx: Context<AddGroupMemberInstructionAccounts>,
-    args: AddGroupMemberInstructionArgs,
+    args: AddGroupMemberInstructionArgs, // We pass in the argument because of the seed checks above
+                                         // A helper function could be added later to extract it from the proposal
 ) -> Result<()> {
     let AddGroupMemberInstructionArgs { new_member } = args;
 
@@ -98,6 +99,7 @@ pub fn add_group_member_handler(
 
             ctx.accounts.new_group_member.set_inner(GroupMember::new(
                 new_member,
+                group.key(),
                 Permissions::new(*permissions)?,
                 *weight,
                 ctx.bumps.new_group_member,
@@ -217,6 +219,7 @@ pub fn add_asset_member_handler(
 
             ctx.accounts.new_asset_member.set_inner(AssetMember::new(
                 new_member,
+                group.key(),
                 *asset.get_asset_address(),
                 Permissions::new(*permissions)?,
                 *weight,

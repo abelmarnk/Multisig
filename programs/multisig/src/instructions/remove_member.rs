@@ -38,9 +38,9 @@ pub struct RemoveGroupMemberInstructionAccounts<'info> {
     )]
     pub proposal: Account<'info, ConfigProposal>,
 
-    /// Collector of the `group_member_account` rent
     #[account(mut)]
-    pub rent_collector: Signer<'info>,
+    /// CHECK: Collector of the `group_member_account` rent
+    pub rent_collector: UncheckedAccount<'info>,
 
     /// Account that opened the proposal, receives proposal's rent
     #[account(mut)]
@@ -67,6 +67,7 @@ pub fn remove_group_member_handler(
         proposal.get_state() == ProposalState::Passed,
         MultisigError::ProposalNotPassed
     );
+
     require_gte!(
         proposal.get_proposal_index(),
         group.get_proposal_index_after_stale(),
@@ -116,6 +117,11 @@ pub struct RemoveAssetMemberInstructionAccounts<'info> {
     )]
     pub asset: Account<'info, Asset>,
 
+    // We don't add in the group member because though a member is required to be part of the group
+    // to be able to govern an asset, it may still it's asset membership existing while the group is
+    // lost(in this case since both group and asset membership are checked before any action is 
+    // authorized their asset membership is useless as it should be), this because of the fact 
+    // that because of solana's transaction size limits not all would be able to be removed at once.
     #[account(
         mut,
         close = rent_collector,
@@ -134,9 +140,9 @@ pub struct RemoveAssetMemberInstructionAccounts<'info> {
     )]
     pub proposal: Account<'info, ConfigProposal>,
 
-    /// Collector of the `asset_member_account` rent
     #[account(mut)]
-    pub rent_collector: Signer<'info>,
+    /// CHECK: Collector of the `group_member_account` rent
+    pub rent_collector: UncheckedAccount<'info>,
 
     /// Account that opened the proposal, receives proposal's rent
     #[account(mut)]
@@ -195,17 +201,18 @@ pub fn remove_asset_member_handler(
 
             // Validate the asset_member PDA points to expected member and asset
             require_keys_eq!(
-                asset_member.get_asset(),
+                *asset_member.get_asset(),
                 *asset_address,
                 MultisigError::InvalidAsset
             );
+
             require_keys_eq!(
-                asset_member.get_user(),
+                *asset_member.get_user(),
                 *target_member,
                 MultisigError::InvalidMember
             );
 
-            asset.decrement_member_count();
+            asset.decrement_member_count()?;
         }
         _ => return Err(MultisigError::InvalidConfigChange.into()),
     }

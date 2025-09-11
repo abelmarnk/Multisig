@@ -207,9 +207,22 @@ impl Asset {
         Ok(())
     }
 
-    #[inline(always)]
-    pub fn decrement_member_count(&mut self) {
-        self.member_count = self.member_count.saturating_sub(1);
+    pub fn decrement_member_count(&mut self) -> Result<()> {
+        let new_count = self
+            .member_count
+            .saturating_sub(1);
+
+        if new_count.le(&self.minimum_vote_count) {
+            return Err(MultisigError::InvalidThreshold.into());
+        }
+
+        if new_count.lt(&self.minimum_member_count) {
+            return Err(MultisigError::InvalidMemberCount.into());
+        }
+
+        self.member_count = new_count;
+
+        Ok(())
     }
 
     #[inline(always)]

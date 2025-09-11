@@ -274,6 +274,8 @@ impl Group {
         self.proposal_index_after_stale
     }
 
+    // This function is called after a config change to invalidate prior proposals
+    // and transactions using the previous config
     pub fn set_proposal_index_after_stale(&mut self, proposal_index: u64) {
         self.proposal_index_after_stale = self.next_proposal_index.
             min(self.proposal_index_after_stale.max(proposal_index));

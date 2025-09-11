@@ -44,7 +44,7 @@ pub fn create_proposal_transaction_handler(
     ctx: Context<CreateProposalTransactionInstructionAccounts>,
     args: CreateProposalTransactionInstructionArgs,
 ) -> Result<()> {
-    // Destructure the arguments at the beginning
+
     let CreateProposalTransactionInstructionArgs { raw_instruction } = args;
 
     let group = &mut ctx.accounts.group;
@@ -63,13 +63,6 @@ pub fn create_proposal_transaction_handler(
         proposal.get_proposal_index(),
         group.get_proposal_index_after_stale(),
         MultisigError::ProposalStale
-    );
-
-    group.set_proposal_index_after_stale(
-        proposal
-            .get_proposal_index()
-            .checked_add(1)
-            .ok_or(ProgramError::ArithmeticOverflow)?,
     );
 
     // Hash check
@@ -96,7 +89,7 @@ pub fn create_proposal_transaction_handler(
     for proposal_asset in proposal_assets.iter() {
         let index = proposal_asset.get_index() as usize;
         let expected_key = *proposal_asset.get_asset();
-        let acct_meta = &serializable_instruction.accounts[index];
+        let acct_meta = &serializable_instruction.accounts[index]; // Bounds checked above
         require!(acct_meta.key == expected_key, MultisigError::UnexpectedAsset);
     }
 

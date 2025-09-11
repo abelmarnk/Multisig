@@ -102,7 +102,7 @@ pub fn create_group_handler(
     ctx: Context<CreateGroupInstructionAccounts>,
     args: CreateGroupInstructionArgs,
 ) -> Result<()> {
-    // Destructure the arguments at the beginning
+
     let CreateGroupInstructionArgs {
         group_seed,
         add_threshold,
@@ -141,7 +141,7 @@ pub fn create_group_handler(
     )?;
     group.set_inner(new_group);
 
-    // Prepare arrays for iteration
+
     let member_accounts = [
         &mut ctx.accounts.member_account_1,
         &mut ctx.accounts.member_account_2,
@@ -176,6 +176,7 @@ pub fn create_group_handler(
     {
         account.set_inner(GroupMember::new(
             member.key(),
+            group.key(),            
             Permissions::new(permissions)?,
             weight,
             bump,

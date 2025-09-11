@@ -943,7 +943,7 @@ impl ProposalTransaction {
         8 +  // proposal_index (u64)
         (4 + asset_len * 1) + // asset_indices Vec<u8>
         (4 + asset_len * 1) + // asset_authority_bumps Vec<[u8; 1]>
-        instruction_size +    // SerializableInstruction
+        4 + instruction_size +    // SerializableInstruction
         1 // account_bump (u8)
     }
 }

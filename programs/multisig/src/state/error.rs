@@ -68,6 +68,10 @@ pub enum MultisigError {
     NotEnoughAccountKeys,
     #[msg("The proposal is stale because a configuration has changed since it was created.")]
     ProposalStale,
+    #[msg("The proposal is not stale so this instruction cannot be called.")]
+    ProposalNotStale,
+    #[msg("The proposal is not in a state that would allow for it to be closed.")]
+    ProposalNotClosable,
     #[msg("Transaction not yet reached valid period")]
     TransactionNotRipe,
     #[msg("The Vectors/Arrays provided are of different lengths")]
@@ -105,7 +109,13 @@ pub enum MultisigError {
     #[msg("Too many votes")]
     TooManyVotes,
     #[msg("Too many members")]
-    TooManyMembers
+    TooManyMembers,
+    #[msg("Group member is still active")]
+    GroupMemberStillActive,
+    #[msg("Proposal is still active")]
+    ProposalStillActive,
+    #[msg("Unexpected proposal")]
+    UnexpectedProposal
 }
 
 // Implement Into<ProgramError> for MultisigError

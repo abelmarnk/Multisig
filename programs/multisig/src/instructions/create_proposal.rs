@@ -61,7 +61,7 @@ pub fn create_normal_proposal_handler(
     ctx: Context<CreateNormalProposalInstructionAccounts>,
     args: CreateNormalProposalInstructionArgs,
 ) -> Result<()> {
-    // Destructure the arguments at the beginning
+
     let CreateNormalProposalInstructionArgs {
         proposal_seed,
         asset_keys,
@@ -155,7 +155,7 @@ pub struct CreateConfigProposalInstructionAccounts<'info> {
     )]
     pub asset: Option<Account<'info, Asset>>,
 
-    /// Proof proposer is a group member (PDA: [b"member", group.key(), proposer.key()])
+    /// Proof proposer is a group member
     #[account(
         seeds = [b"member", group.key().as_ref(), proposer.key().as_ref()],
         bump = proposer_group_account.get_account_bump()
@@ -179,7 +179,7 @@ pub fn create_config_proposal_handler(
     ctx: Context<CreateConfigProposalInstructionAccounts>,
     args: CreateConfigProposalInstructionArgs,
 ) -> Result<()> {
-    // Destructure the arguments at the beginning
+
     let CreateConfigProposalInstructionArgs {
         proposal_seed,
         timelock_offset,
@@ -187,19 +187,19 @@ pub fn create_config_proposal_handler(
         config_change,
     } = args;
 
-    // Short aliases
+
     let proposer_key = ctx.accounts.proposer.key();
     let group = &mut ctx.accounts.group;
     let proposer_member = &ctx.accounts.proposer_group_account;
     let proposal = &mut ctx.accounts.proposal;
 
-    // Permission: proposer must have propose permission
+    // Proposer must have propose permission
     require!(
         proposer_member.has_propose(),
         MultisigError::InsufficientPermissions
     );
 
-    // Resolve offsets: use provided override or group defaults
+    // Use provided offsets or group defaults
     let expiry = expiry_offset.unwrap_or(group.get_expiry_offset());
 
     let timelock = timelock_offset.unwrap_or(group.get_timelock_offset());

@@ -6,6 +6,7 @@ use crate::MultisigError;
 #[derive(InitSpace)]
 pub struct AssetMember {
     user: Pubkey,
+    group:Pubkey,
     asset: Pubkey,
     permissions: Permissions,
     weight: u32,
@@ -16,6 +17,7 @@ pub struct AssetMember {
 #[derive(InitSpace)]
 pub struct GroupMember {
     user: Pubkey,
+    group:Pubkey,    
     permissions: Permissions,
     weight: u32,
     account_bump: u8,
@@ -25,6 +27,7 @@ impl AssetMember {
     #[inline(always)]
     pub fn new(
         user: Pubkey,
+        group:Pubkey,
         asset: Pubkey,
         permissions: Permissions,
         weight: u32,
@@ -33,6 +36,7 @@ impl AssetMember {
     ) -> Result<Self> {
         Ok(Self {
             user,
+            group,
             asset,
             permissions,
             weight: weight.min(max_weight),
@@ -41,13 +45,17 @@ impl AssetMember {
     }
 
     #[inline(always)]
-    pub fn get_user(&self) -> Pubkey {
-        self.user
+    pub fn get_user(&self) -> &Pubkey {
+        &self.user
+    }
+
+    pub fn get_group(&self) -> &Pubkey{
+        &self.group
     }
 
     #[inline(always)]
-    pub fn get_asset(&self) -> Pubkey {
-        self.asset
+    pub fn get_asset(&self) -> &Pubkey {
+        &self.asset
     }
 
     #[inline(always)]
@@ -110,6 +118,7 @@ impl GroupMember {
     #[inline(always)]
     pub fn new(
         user: Pubkey,
+        group: Pubkey,
         permissions: Permissions,
         weight: u32,
         account_bump: u8,
@@ -117,6 +126,7 @@ impl GroupMember {
     ) -> Result<Self> {
         Ok(Self {
             user,
+            group,
             permissions,
             weight: weight.min(max_weight),
             account_bump,
@@ -126,6 +136,10 @@ impl GroupMember {
     #[inline(always)]
     pub fn get_user(&self) -> &Pubkey {
         &self.user
+    }
+
+    pub fn get_group(&self) -> &Pubkey{
+        &self.group
     }
 
     #[inline(always)]

@@ -110,6 +110,7 @@ pub struct ChangeAssetConfigInstructionAccounts<'info> {
 pub fn change_asset_config_handler(
     ctx: Context<ChangeAssetConfigInstructionAccounts>,
 ) -> Result<()> {
+    let group = &mut ctx.accounts.group;
     let asset = &mut ctx.accounts.asset;
     let proposal = &ctx.accounts.proposal;
 
@@ -124,6 +125,19 @@ pub fn change_asset_config_handler(
     require!(
         proposal.get_state() == ProposalState::Passed,
         MultisigError::ProposalNotPassed
+    );
+
+    require_gte!(
+        proposal.get_proposal_index(),
+        group.get_proposal_index_after_stale(),
+        MultisigError::ProposalStale
+    );
+
+    group.set_proposal_index_after_stale(
+        proposal
+            .get_proposal_index()
+            .checked_add(1)
+            .ok_or(ProgramError::ArithmeticOverflow)?,
     );
 
     match proposal.get_config_change() {

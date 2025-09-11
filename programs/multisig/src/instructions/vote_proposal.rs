@@ -25,6 +25,7 @@ pub struct VoteOnConfigProposalInstructionArgs {
 
 #[derive(Accounts)]
 #[instruction(args: VoteOnNormalProposalInstructionArgs)]
+// The seeds binds accounts together so some checks are omitted
 pub struct VoteOnNormalProposalInstructionAccounts<'info> {
     #[account(
         mut,
@@ -114,17 +115,6 @@ pub fn vote_on_normal_proposal_handler(
         MultisigError::InvalidAsset
     );
 
-    require_keys_eq!(
-        asset_member.get_asset(),
-        *asset.get_asset_address(),
-        MultisigError::InvalidAssetMember
-    );
-    require_keys_eq!(
-        asset_member.get_user(),
-        voter.key(),
-        MultisigError::UnauthorizedVoter
-    );
-
     let weight = asset_member.get_weight();
 
     // First vote or re-vote?
@@ -156,11 +146,6 @@ pub fn vote_on_normal_proposal_handler(
         ));
     } else {
         // Re-vote
-        require_keys_eq!(
-            *vote_record.get_voter(),
-            voter.key(),
-            MultisigError::UnauthorizedVoter
-        );
 
         if vote_record.get_vote_choice() != vote {
             // Undo previous
@@ -206,6 +191,7 @@ pub fn vote_on_normal_proposal_handler(
 
 #[derive(Accounts)]
 #[instruction(args: VoteOnConfigProposalInstructionArgs)]
+// The seeds binds accounts together so some checks are omitted
 pub struct VoteOnConfigProposalInstructionAccounts<'info> {
     #[account(
         mut,
@@ -286,18 +272,6 @@ pub fn vote_on_config_proposal_handler(
         return Err(MultisigError::ProposalExpired.into());
     }
 
-    // Validate voter
-    require_keys_eq!(
-        *group_member.get_user(),
-        voter.key(),
-        MultisigError::UnauthorizedVoter
-    );
-    require_keys_eq!(
-        *proposal.get_group(),
-        group.key(),
-        MultisigError::UnexpectedGroup
-    );
-
     // First vote?
     if vote_record.to_account_info().data_is_empty() {
         match proposal.get_target() {
@@ -323,21 +297,6 @@ pub fn vote_on_config_proposal_handler(
                     MultisigError::UnexpectedAsset
                 );
 
-                let membership = ctx
-                    .accounts
-                    .asset_member
-                    .as_ref()
-                    .ok_or(MultisigError::AssetMemberNotProvided)?;
-                require_keys_eq!(
-                    membership.get_asset(),
-                    *asset.get_asset_address(),
-                    MultisigError::InvalidAssetMember
-                );
-                require_keys_eq!(
-                    membership.get_user(),
-                    voter.key(),
-                    MultisigError::UnauthorizedVoter
-                );
 
                 match vote {
                     VoteChoice::For => {
@@ -361,11 +320,6 @@ pub fn vote_on_config_proposal_handler(
         ));
     } else {
         // Re-vote
-        require_keys_eq!(
-            *vote_record.get_voter(),
-            voter.key(),
-            MultisigError::UnauthorizedVoter
-        );
 
         if vote_record.get_vote_choice() != vote {
             // Undo previous
@@ -396,22 +350,6 @@ pub fn vote_on_config_proposal_handler(
                         *target_asset,
                         *asset.get_asset_address(),
                         MultisigError::UnexpectedAsset
-                    );
-
-                    let membership = ctx
-                        .accounts
-                        .asset_member
-                        .as_ref()
-                        .ok_or(MultisigError::AssetMemberNotProvided)?;
-                    require_keys_eq!(
-                        membership.get_asset(),
-                        *asset.get_asset_address(),
-                        MultisigError::InvalidAssetMember
-                    );
-                    require_keys_eq!(
-                        membership.get_user(),
-                        voter.key(),
-                        MultisigError::UnauthorizedVoter
                     );
 
                     match vote {
