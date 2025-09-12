@@ -78,13 +78,3 @@ The program provides a complete lifecycle of **governance, voting, execution, an
 
 ## Building and Deploying
  - To be filled
-
-## License
-
-This project will be licensed under the **Apache License 2.0**.
-
-To include the license in your project:
-1. Add a `LICENSE` file at the root of your repository.
-2. Paste the full text of the Apache 2.0 license (from [Apache’s site](https://www.apache.org/licenses/LICENSE-2.0.txt)).
-3. Add a short notice in this `README.md`:
-
