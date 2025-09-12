@@ -1,2 +1,2 @@
 # Multisig
-A solana multisig for governing assets through proposals
+A solana multisig program for governing assets through proposals

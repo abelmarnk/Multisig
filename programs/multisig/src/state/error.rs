@@ -115,7 +115,9 @@ pub enum MultisigError {
     #[msg("Proposal is still active")]
     ProposalStillActive,
     #[msg("Unexpected proposal")]
-    UnexpectedProposal
+    UnexpectedProposal,
+    #[msg("Unexpected rent collector")]
+    UnexpectedRentCollector
 }
 
 // Implement Into<ProgramError> for MultisigError

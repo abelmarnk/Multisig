@@ -6,7 +6,7 @@ use crate::state::{
 use anchor_lang::{prelude::*, solana_program::system_program};
 
 #[derive(Accounts)]
-// The accounts are bound together with the seeds
+// The accounts are bound together with the seeds and the rent collector check in the handler
 pub struct CloseAssetMemberInstructionAccounts<'info> {
     /// The group that this asset member belongs to
     #[account(
@@ -34,19 +34,26 @@ pub struct CloseAssetMemberInstructionAccounts<'info> {
 
     pub member:SystemAccount<'info>,
 
-    /// Collector of the `asset_member` rent
     #[account(mut)]
-    /// CHECK: open to anyone right now, later canonicalized
+    /// CHECK: Rent collector
     pub rent_collector: UncheckedAccount<'info>,
 }
 
 pub fn close_asset_member_handler(
     ctx: Context<CloseAssetMemberInstructionAccounts>,
 ) -> Result<()> {
+    let group = &ctx.accounts.group;
     let group_member = &ctx.accounts.group_member;
+    let rent_collector = &ctx.accounts.rent_collector;
 
+    // Validate rent collector
+    require_keys_eq!(
+        rent_collector.key(),
+        *group.get_rent_collector(),
+        MultisigError::UnexpectedRentCollector
+    );
 
-    // Ensure that the group member account is *closed*
+    // Ensure that the group member account is closed
     // A closed account will have lamports == 0 and owner == system_program and data empty
     require!(
         group_member.lamports() == 0 && 

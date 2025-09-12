@@ -12,6 +12,7 @@ use crate::{
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct CreateGroupInstructionArgs {
     pub group_seed: Pubkey,
+    pub rent_collector: Pubkey,
     pub add_threshold: FractionalThreshold,
     pub not_add_threshold: FractionalThreshold,
     pub remove_threshold: FractionalThreshold,
@@ -105,6 +106,7 @@ pub fn create_group_handler(
 
     let CreateGroupInstructionArgs {
         group_seed,
+        rent_collector,
         add_threshold,
         not_add_threshold,
         remove_threshold,
@@ -125,6 +127,7 @@ pub fn create_group_handler(
     // Initialize group
     let new_group = Group::new(
         group_seed,
+        rent_collector,
         add_threshold,
         not_add_threshold,
         remove_threshold,

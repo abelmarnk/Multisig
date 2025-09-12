@@ -18,8 +18,10 @@ pub fn execute_proposal_transaction_handler(
     let proposal_transaction = &ctx.accounts.proposal_transaction;
     
     // Ensure the group matches
-    require_keys_eq!(proposal_transaction.get_group(), 
-        group.key(), MultisigError::UnexpectedGroup
+    require_keys_eq!(
+        *proposal_transaction.get_group(), 
+        group.key(), 
+        MultisigError::UnexpectedGroup
     );
 
     // Ensure the transaction is ripe(the timelock has expired)

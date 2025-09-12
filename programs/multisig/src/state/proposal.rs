@@ -915,8 +915,8 @@ impl ProposalTransaction {
     }
 
     #[inline(always)]    
-    pub fn get_group(&self) -> Pubkey {
-        self.group
+    pub fn get_group(&self) -> &Pubkey {
+        &self.group
     }
 
     #[inline(always)]    

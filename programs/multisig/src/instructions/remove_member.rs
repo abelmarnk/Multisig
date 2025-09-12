@@ -53,8 +53,16 @@ pub fn remove_group_member_handler(
     ctx: Context<RemoveGroupMemberInstructionAccounts>,
 ) -> Result<()> {
     let group = &mut ctx.accounts.group;
+    let rent_collector = &ctx.accounts.rent_collector;
     let proposal = &ctx.accounts.proposal;
 
+    // Validate rent collector
+    require_keys_eq!(
+        rent_collector.key(),
+        *group.get_rent_collector(),
+        MultisigError::UnexpectedRentCollector
+    );
+    
     // Validate proposer
     require_keys_eq!(
         ctx.accounts.proposer.key(),
@@ -118,10 +126,10 @@ pub struct RemoveAssetMemberInstructionAccounts<'info> {
     pub asset: Account<'info, Asset>,
 
     // We don't add in the group member because though a member is required to be part of the group
-    // to be able to govern an asset, it may still it's asset membership existing while the group is
-    // lost(in this case since both group and asset membership are checked before any action is 
-    // authorized their asset membership is useless as it should be), this because of the fact 
-    // that because of solana's transaction size limits not all would be able to be removed at once.
+    // to be able to govern an asset, it may still have it's asset membership existing while the group is
+    // removed(in this case since both group and asset membership are checked before any of their actions are 
+    // authorized and their asset membership is useless as it should be), this because of the fact 
+    // that because of solana's transaction size limits not all asset memberships would be able to be removed at once.
     #[account(
         mut,
         close = rent_collector,
@@ -141,7 +149,7 @@ pub struct RemoveAssetMemberInstructionAccounts<'info> {
     pub proposal: Account<'info, ConfigProposal>,
 
     #[account(mut)]
-    /// CHECK: Collector of the `group_member_account` rent
+    /// CHECK: rent collector of the group
     pub rent_collector: UncheckedAccount<'info>,
 
     /// Account that opened the proposal, receives proposal's rent
@@ -155,9 +163,17 @@ pub fn remove_asset_member_handler(
     ctx: Context<RemoveAssetMemberInstructionAccounts>,
 ) -> Result<()> {
     let group = &mut ctx.accounts.group;
+    let rent_collector = &mut ctx.accounts.rent_collector;
     let asset = &mut ctx.accounts.asset;
     let proposal = &ctx.accounts.proposal;
     let asset_member = &ctx.accounts.asset_member_account;
+
+    // Validate rent collector
+    require_keys_eq!(
+        *rent_collector.key,
+        *group.get_rent_collector(),
+        MultisigError::UnexpectedRentCollector   
+    );
 
     // Validate proposer
     require_keys_eq!(

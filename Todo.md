@@ -1,5 +1,4 @@
 - Consider adding a config change for max weight count
-- Add a rent collector to the group
 - Add transaction support later(in place of just instruction support) and also add the ability to extend the transaction
 - Add LiteSVM tests
 - Expand readme.md

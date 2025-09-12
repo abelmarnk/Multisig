@@ -6,6 +6,8 @@ use anchor_lang::prelude::*;
 pub struct Group {
     group_seed: Pubkey,
 
+    rent_collector:Pubkey,
+
     /// Threshold to add a member
     add_threshold: FractionalThreshold,
     /// Threshold to stop adding a member
@@ -48,6 +50,7 @@ pub struct Group {
 impl Group {
     pub fn new(
         group_seed: Pubkey,
+        rent_collector: Pubkey,
         add_threshold: FractionalThreshold,
         mut not_add_threshold: FractionalThreshold,
         remove_threshold: FractionalThreshold,
@@ -86,6 +89,7 @@ impl Group {
         // Build group
         let group = Self {
             group_seed,
+            rent_collector,
             add_threshold,
             not_add_threshold,
             remove_threshold,
@@ -106,10 +110,20 @@ impl Group {
         Ok(group)
     }
 
-        #[inline(always)]
+    #[inline(always)]
     pub fn get_group_seed(&self) -> &Pubkey {
         &self.group_seed
     }
+
+    #[inline(always)]
+    pub fn get_rent_collector(&self) -> &Pubkey{
+        &self.rent_collector
+    }
+
+    #[inline(always)]
+    pub fn set_rent_collector(&mut self, rent_collector: Pubkey){
+        self.rent_collector = rent_collector;
+    } 
 
     #[inline(always)]
     pub fn get_account_bump(&self) -> u8 {
