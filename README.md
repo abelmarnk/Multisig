@@ -1,10 +1,10 @@
 # Solana Multisig Program
 
 This project is a **Solana anchor program** that implements a flexible, asset-aware multisig governance system.  
-It builds on ideas inspired by prior work in other repositories, including:  
+It's inspired by other projects, including:  
 
-- [Squads](link-to-be-filled)  
-- [Repository 2](link-to-be-filled)  
+- [Squads](https://github.com/Squads-Protocol/v4)  
+- [Vault pro](https://github.com/solana-turbin3/Q1_25_Builder_dvrvsimi)  
 
 ---
 
