@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 
+// Stores information about a proposal vote
 #[account]
 #[derive(InitSpace)]
 pub struct VoteRecord {

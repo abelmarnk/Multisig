@@ -11,6 +11,7 @@ pub struct ExecuteProposalTransactionInstructionAccounts<'info> {
     pub proposal_transaction: Account<'info, ProposalTransaction>,
 }
 
+/// Execute a transaction associated with a particular proposal
 pub fn execute_proposal_transaction_handler(
     ctx: Context<ExecuteProposalTransactionInstructionAccounts>,
 ) -> Result<()> {

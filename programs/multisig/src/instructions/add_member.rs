@@ -15,7 +15,6 @@ pub struct AddGroupMemberInstructionArgs {
 #[derive(Accounts)]
 #[instruction(args: AddGroupMemberInstructionArgs)]
 pub struct AddGroupMemberInstructionAccounts<'info> {
-    /// Governance group
     #[account(
         mut,
         seeds = [b"group", group.get_group_seed().as_ref()],
@@ -23,7 +22,7 @@ pub struct AddGroupMemberInstructionAccounts<'info> {
     )]
     pub group: Account<'info, Group>,
 
-    /// ConfigProposal approving this addition
+    // ConfigProposal approving this addition
     #[account(
         mut,
         seeds = [b"proposal", group.key().as_ref(), proposal.get_proposal_seed().as_ref()],
@@ -32,11 +31,11 @@ pub struct AddGroupMemberInstructionAccounts<'info> {
     )]
     pub proposal: Account<'info, ConfigProposal>,
 
-    /// Account that opened the proposal, receives rent
+    // Account that opened the proposal, receives rent
     #[account(mut)]
     pub proposer: SystemAccount<'info>,
 
-    /// The new group member account to be initialized
+    // The new group member account to be initialized
     #[account(
         init,
         space = 8 + GroupMember::INIT_SPACE,
@@ -52,6 +51,8 @@ pub struct AddGroupMemberInstructionAccounts<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Adds a new member to an existing group, storing their key and weight and permissions,
+/// as well as the group key for indexing.
 pub fn add_group_member_handler(
     ctx: Context<AddGroupMemberInstructionAccounts>,
     args: AddGroupMemberInstructionArgs, // We pass in the argument because of the seed checks above
@@ -81,12 +82,7 @@ pub fn add_group_member_handler(
         MultisigError::ProposalStale
     );
 
-    group.set_proposal_index_after_stale(
-        proposal
-            .get_proposal_index()
-            .checked_add(1)
-            .ok_or(ProgramError::ArithmeticOverflow)?,
-    );
+    group.update_stale_proposal_index();
 
     // Add member
     match proposal.get_config_change() {
@@ -129,11 +125,11 @@ pub struct AddAssetMemberInstructionAccounts<'info> {
     )]
     pub group: Account<'info, Group>,
 
-    /// Asset being governed
+    // Asset being governed
     #[account(mut)]
     pub asset: Account<'info, Asset>,
 
-    /// ConfigProposal approving this addition
+    // ConfigProposal approving this addition
     #[account(
         mut,
         seeds = [b"proposal", group.key().as_ref(), proposal.get_proposal_seed().as_ref()],
@@ -142,18 +138,18 @@ pub struct AddAssetMemberInstructionAccounts<'info> {
     )]
     pub proposal: Account<'info, ConfigProposal>,
 
-    /// Account that opened the proposal, receives rent
+    // Account that opened the proposal, receives rent
     #[account(mut)]
     pub proposer: SystemAccount<'info>,
 
-    /// Corresponding group member must exist
+    // Corresponding group member must exist
     #[account(
         seeds = [b"member", group.key().as_ref(), args.new_member.as_ref()],
         bump = group_member.get_account_bump()
     )]
     pub group_member: Account<'info, GroupMember>,
 
-    /// AssetMember PDA for new asset member
+    // AssetMember PDA for new asset member
     #[account(
         init,
         payer = payer,
@@ -169,6 +165,8 @@ pub struct AddAssetMemberInstructionAccounts<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Adds a pre-existing group member to govern an existing asset, storing their key and weight
+///  and permissions, as well as the group key and asset key for indexing.
 pub fn add_asset_member_handler(
     ctx: Context<AddAssetMemberInstructionAccounts>,
     args: AddAssetMemberInstructionArgs,
@@ -197,12 +195,8 @@ pub fn add_asset_member_handler(
         MultisigError::ProposalStale
     );
 
-    group.set_proposal_index_after_stale(
-        proposal
-            .get_proposal_index()
-            .checked_add(1)
-            .ok_or(ProgramError::ArithmeticOverflow)?,
-    );
+    group.update_stale_proposal_index();
+
 
     match proposal.get_config_change() {
         ConfigChange::AddAssetMember {

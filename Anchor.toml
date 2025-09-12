@@ -9,7 +9,7 @@ skip-lint = false
 tokens = "HDtNkcgMfN4CARCF4DgFo7BGBqyNjQ6LGNYKwQLkshTR"
 
 [registry]
-url = "https://api.apr.dev"
+url = "https:///api.apr.dev"
 
 [provider]
 cluster = "localnet"

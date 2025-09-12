@@ -16,6 +16,9 @@ pub struct CloseProposalTransactionInstructionAccounts<'info> {
     pub rent_collector: UncheckedAccount<'info>,
 }
 
+/// Close a proposal transaction that though was finalized after the proposal was passed
+/// and active(no config had changed), execution was delayed till after a config changed
+/// and refund the rent to the proposal
 pub fn close_proposal_transaction_handler(
     ctx: Context<CloseProposalTransactionInstructionAccounts>,
 ) -> Result<()> {

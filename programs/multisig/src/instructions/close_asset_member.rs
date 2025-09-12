@@ -6,8 +6,8 @@ use crate::state::{
 use anchor_lang::{prelude::*, solana_program::system_program};
 
 #[derive(Accounts)]
-// The accounts are bound together with the seeds and the rent collector check in the handler
-pub struct CloseAssetMemberInstructionAccounts<'info> {
+/// The accounts are bound together with the seeds and the rent collector check in the handler
+pub struct CleanUpAssetMemberInstructionAccounts<'info> {
     /// The group that this asset member belongs to
     #[account(
         seeds = [b"group", group.get_group_seed().as_ref()],
@@ -39,8 +39,10 @@ pub struct CloseAssetMemberInstructionAccounts<'info> {
     pub rent_collector: UncheckedAccount<'info>,
 }
 
-pub fn close_asset_member_handler(
-    ctx: Context<CloseAssetMemberInstructionAccounts>,
+/// Close an asset member account that has had it's group member account removed(by a proposal)
+/// the rent is sent to the rent collector
+pub fn clean_up_asset_member_handler(
+    ctx: Context<CleanUpAssetMemberInstructionAccounts>,
 ) -> Result<()> {
     let group = &ctx.accounts.group;
     let group_member = &ctx.accounts.group_member;

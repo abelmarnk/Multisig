@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 
 use crate::MultisigError;
 
+// Stores a representation of a fractional value, used for representing thresholds
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, InitSpace)]
 pub struct FractionalThreshold {
     numerator: u32,
@@ -27,13 +28,13 @@ impl FractionalThreshold {
             denominator,
         })
     }
-    /// Returns true if the fraction (numerator/denominator) condition is satisfied.
-    /// Example: if threshold is 2/3, then 2 out of 3 (≈66.6%) must be reached.
+
+    /// Compares two fractional vaules
     pub fn greater_than_or_equal(&self, numerator: u64, denominator: u64) -> Result<bool> {
-        if self.denominator == 0 // Not really necessary since the threshold can't have zero denominator
+        if self.denominator == 0 
             || denominator == 0
         {
-            return Err(ProgramError::ArithmeticOverflow.into()); // avoid divide-by-zero and meaningless thresholds
+            return Err(ProgramError::ArithmeticOverflow.into());
         }
 
         // Check: numerator/denominator >= self.numerator/self.denominator
@@ -45,7 +46,7 @@ impl FractionalThreshold {
                 .ok_or(ProgramError::ArithmeticOverflow)?))
     }
 
-    /// Example: if threshold is 2/3, then 2 out of 3 (≈66.6%) must be reached.
+    /// Compares two fractional vaules
     pub fn threshold_greater_than_or_equal(&self, threshold: &FractionalThreshold) -> Result<bool> {
         // It's safe to use unwrap since the threshold can't be in an invalid state
         self.greater_than_or_equal(
@@ -54,6 +55,8 @@ impl FractionalThreshold {
         )
     }
 
+    /// This function is used for reducing the other fraction to at most 1 - (X), where X is
+    /// the current fraction in `self`
     pub fn normalize_other(&self, threshold: &mut FractionalThreshold) -> Result<()> {
         if self.threshold_greater_than_or_equal(threshold)? {
             *threshold = FractionalThreshold {

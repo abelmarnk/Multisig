@@ -26,7 +26,8 @@ pub struct ChangeGroupConfigInstructionAccounts<'info> {
     #[account(mut)]
     pub proposer: SystemAccount<'info>,
 }
-
+/// Updates group-wide configuration (e.g, timelock, thresholds, expiry), 
+/// it must be triggered by an approved proposal.
 pub fn change_group_config_handler(
     ctx: Context<ChangeGroupConfigInstructionAccounts>,
 ) -> Result<()> {
@@ -52,12 +53,8 @@ pub fn change_group_config_handler(
         MultisigError::ProposalStale
     );
 
-    group.set_proposal_index_after_stale(
-        proposal
-            .get_proposal_index()
-            .checked_add(1)
-            .ok_or(ProgramError::ArithmeticOverflow)?,
-    );
+    group.update_stale_proposal_index();
+
 
     match proposal.get_config_change() {
         ConfigChange::ChangeGroupConfig { config_type } => match config_type {
@@ -107,6 +104,8 @@ pub struct ChangeAssetConfigInstructionAccounts<'info> {
     pub proposer: SystemAccount<'info>,
 }
 
+/// Updates asset-wide configuration (e.g, timelock, thresholds, expiry), 
+/// it must be triggered by an approved proposal.
 pub fn change_asset_config_handler(
     ctx: Context<ChangeAssetConfigInstructionAccounts>,
 ) -> Result<()> {
@@ -133,12 +132,8 @@ pub fn change_asset_config_handler(
         MultisigError::ProposalStale
     );
 
-    group.set_proposal_index_after_stale(
-        proposal
-            .get_proposal_index()
-            .checked_add(1)
-            .ok_or(ProgramError::ArithmeticOverflow)?,
-    );
+    group.update_stale_proposal_index();
+
 
     match proposal.get_config_change() {
         ConfigChange::ChangeAssetConfig {

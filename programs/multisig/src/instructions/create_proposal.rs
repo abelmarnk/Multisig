@@ -1,7 +1,6 @@
 use crate::state::*;
 use anchor_lang::{prelude::*, solana_program::hash::HASH_BYTES as HASH_BYTES_LENGTH};
 
-// Instruction arguments struct for CreateNormalProposalInstructionAccounts
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct CreateNormalProposalInstructionArgs {
     pub proposal_seed: Pubkey,
@@ -13,7 +12,6 @@ pub struct CreateNormalProposalInstructionArgs {
     pub instruction_hash: [u8; HASH_BYTES_LENGTH],
 }
 
-// Instruction arguments struct for CreateConfigProposal
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct CreateConfigProposalInstructionArgs {
     pub proposal_seed: Pubkey,
@@ -57,6 +55,8 @@ pub struct CreateNormalProposalInstructionAccounts<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Creates a proposal with a transaction that uses specific assets and requires 
+/// meeting a quorom for each individual asset.
 pub fn create_normal_proposal_handler(
     ctx: Context<CreateNormalProposalInstructionAccounts>,
     args: CreateNormalProposalInstructionArgs,
@@ -175,6 +175,8 @@ pub struct CreateConfigProposalInstructionAccounts<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Creates a proposal that targets a group or a specific asset and requires 
+/// meeting a quorom for that group or asset to change it's config
 pub fn create_config_proposal_handler(
     ctx: Context<CreateConfigProposalInstructionAccounts>,
     args: CreateConfigProposalInstructionArgs,

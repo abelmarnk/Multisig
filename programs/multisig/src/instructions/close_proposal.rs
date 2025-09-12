@@ -22,6 +22,7 @@ pub struct CloseProposalInstructionAccounts<'info> {
     pub proposer: SystemAccount<'info>,
 }
 
+/// Close a proposal that failed or expired and refund the rent to the proposer
 pub fn close_proposal_handler(
     ctx: Context<CloseProposalInstructionAccounts>,
 ) -> Result<()> {

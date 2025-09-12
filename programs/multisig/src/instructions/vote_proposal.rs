@@ -70,6 +70,8 @@ pub struct VoteOnNormalProposalInstructionAccounts<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Vote on a proposal that would execute a transaction and uses assets 
+/// controlled by the multisig if passed.
 pub fn vote_on_normal_proposal_handler(
     ctx: Context<VoteOnNormalProposalInstructionAccounts>,
     args: VoteOnNormalProposalInstructionArgs,
@@ -244,6 +246,7 @@ pub struct VoteOnConfigProposalInstructionAccounts<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Vote on a proposal that changes the configuration of a group or asset if passed.
 pub fn vote_on_config_proposal_handler(
     ctx: Context<VoteOnConfigProposalInstructionAccounts>,
     args: VoteOnConfigProposalInstructionArgs,

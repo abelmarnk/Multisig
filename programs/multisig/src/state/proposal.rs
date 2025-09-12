@@ -147,7 +147,7 @@ impl NormalProposal {
     }
 
     #[inline(always)]
-pub fn get_size(asset_count: usize) -> usize {
+    pub fn get_size(asset_count: usize) -> usize {
 
         // proposer: Pubkey
         size_of::<Pubkey>()
@@ -620,6 +620,7 @@ impl ConfigProposal {
     }
 }
 
+/// Stores the different type of changes that could be made to an asset or group
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
 pub enum ConfigChange {
     AddGroupMember {
@@ -668,27 +669,30 @@ impl ConfigChange {
     }
 }
 
+/// Stores the state for an existing proposal
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
 pub enum ProposalState {
-    /// Proposal is active and voting is open
+    // Proposal is active and voting is open
     Open,
 
-    /// Proposal passed successfully
+    // Proposal passed successfully
     Passed,
 
-    /// Proposal failed to reach threshold or was rejected
+    // Proposal failed to reach threshold or was rejected
     Failed,
 
-    /// The proposal has run out of time to pass
+    // The proposal has run out of time to pass
     Expired,
 }
 
+/// Stores whether or not a config proposal is for a group or an asset
 #[derive(AnchorSerialize, AnchorDeserialize, InitSpace, Clone, PartialEq, Eq)]
 pub enum ProposalTarget {
     Group,
     Asset(Pubkey),
 }
 
+/// Stores the different type of specifc config changes that could be made to an asset or group
 #[derive(AnchorSerialize, AnchorDeserialize, InitSpace, Clone)]
 pub enum ConfigType {
     AddMember(FractionalThreshold),
@@ -703,6 +707,7 @@ pub enum ConfigType {
     NotChangeConfig(FractionalThreshold),
 }
 
+/// Stores the relevant information for a Proposal asset in a transaction
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
 pub struct ProposalAsset {
     index: u8,
@@ -824,6 +829,7 @@ impl ProposalAsset {
     }
 }
 
+/// Stores a proposal threshold state(e.g whether or not the passing or failing threshold has been met)
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, InitSpace, PartialEq, Eq)]
 pub enum ProposalAssetThresholdState {
     NoThresholdReached,
@@ -847,6 +853,7 @@ impl SerailizableAccountMeta {
     }
 }
 
+/// Stores an Anchor De/Serializable version of an instruction
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct SerializableInstruction {
     pub program_id: Pubkey,
@@ -876,11 +883,12 @@ impl SerializableInstruction {
     #[inline(always)]    
     pub fn get_size(&self) -> usize {
         32 + // program_id (Pubkey)
-        (4 + self.accounts.len() * SerailizableAccountMeta::get_size()) + // Vec<SerailizableAccountMeta>
-        (4 + self.data.len()) // Vec<u8>
+        (4 + self.accounts.len() * SerailizableAccountMeta::get_size()) + // accounts (Vec<SerailizableAccountMeta>)
+        (4 + self.data.len()) // data (Vec<u8>)
     }
 }
 
+// Stores a transaction associated with a particular proposal
 #[account]
 pub struct ProposalTransaction {
     group: Pubkey,
@@ -941,9 +949,9 @@ impl ProposalTransaction {
     pub fn get_size(asset_len: usize, instruction_size: usize) -> usize {
         32 + // group (Pubkey)
         8 +  // proposal_index (u64)
-        (4 + asset_len * 1) + // asset_indices Vec<u8>
-        (4 + asset_len * 1) + // asset_authority_bumps Vec<[u8; 1]>
-        4 + instruction_size +    // SerializableInstruction
+        (4 + asset_len * 1) + // asset_indices (Vec<u8>)
+        (4 + asset_len * 1) + // asset_authority_bumps (Vec<[u8; 1]>)
+        instruction_size +    // instruction (SerializableInstruction)
         1 // account_bump (u8)
     }
 }

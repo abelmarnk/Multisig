@@ -8,7 +8,6 @@ use crate::state::{
 
 #[derive(Accounts)]
 pub struct CloseNormalVoteRecordInstructionAccounts<'info> {
-    /// Group (namespace for PDAs)
     #[account(
         seeds = [b"group", group.get_group_seed().as_ref()],
         bump = group.get_account_bump()
@@ -18,7 +17,6 @@ pub struct CloseNormalVoteRecordInstructionAccounts<'info> {
     /// CHECK: The proposal account must already be closed
     pub proposal: UncheckedAccount<'info>,
 
-    /// Vote record being closed
     #[account(
         mut,
         seeds = [b"vote_record", group.key().as_ref(), proposal.key().as_ref(), voter.key().as_ref(), 
@@ -28,11 +26,11 @@ pub struct CloseNormalVoteRecordInstructionAccounts<'info> {
     )]
     pub vote_record: Account<'info, VoteRecord>,
 
-    /// Voter who created the vote record
     #[account(mut)]
     pub voter: Signer<'info>,
 }
 
+/// Close a vote record for a normal proposal, the rent is refunded to the voter
 pub fn close_normal_vote_record_handler(
     ctx: Context<CloseNormalVoteRecordInstructionAccounts>,
 ) -> Result<()> {
@@ -59,7 +57,6 @@ pub fn close_normal_vote_record_handler(
 
 #[derive(Accounts)]
 pub struct CloseConfigVoteRecordInstructionAccounts<'info> {
-    /// Group (namespace for PDAs)
     #[account(
         seeds = [b"group", group.get_group_seed().as_ref()],
         bump = group.get_account_bump()
@@ -69,7 +66,6 @@ pub struct CloseConfigVoteRecordInstructionAccounts<'info> {
     /// CHECK: The proposal account must already be closed
     pub proposal: UncheckedAccount<'info>,
 
-    /// Vote record being closed
     #[account(
         mut,
         seeds = [b"vote_record", group.key().as_ref(), proposal.key().as_ref(), voter.key().as_ref()],
@@ -78,11 +74,11 @@ pub struct CloseConfigVoteRecordInstructionAccounts<'info> {
     )]
     pub vote_record: Account<'info, VoteRecord>,
 
-    /// Voter who created the vote record
     #[account(mut)]
     pub voter: Signer<'info>,
 }
 
+/// Close a vote record for a config proposal, the rent is refunded to the voter
 pub fn close_config_vote_record_handler(
     ctx: Context<CloseConfigVoteRecordInstructionAccounts>,
 ) -> Result<()> {

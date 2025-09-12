@@ -15,11 +15,11 @@ pub enum MultisigError {
     #[msg("The config supplied does not match the instruction")]
     InvalidConfigChange,
     #[msg("The Member provided does not match the expected member")]
-    InvalidMember, // Change to unexpected if necessary
+    InvalidMember, /// Change to unexpected if necessary
     #[msg("The proposal has not yet passed")]
     ProposalNotPassed,
     #[msg("The asset provided does not match the expected asset")]
-    InvalidAsset, // Change to unexpected if necessary
+    InvalidAsset, /// Change to unexpected if necessary
     #[msg("The provided member goes not govern the group")]
     NotGroupMember,
     #[msg("The provided member goes not govern the asset")]
@@ -120,7 +120,7 @@ pub enum MultisigError {
     UnexpectedRentCollector
 }
 
-// Implement Into<ProgramError> for MultisigError
+/// Implement Into<ProgramError> for MultisigError
 impl From<MultisigError> for ProgramError {
     fn from(e: MultisigError) -> Self {
         ProgramError::Custom(e as u32)

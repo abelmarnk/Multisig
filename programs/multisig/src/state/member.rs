@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 
 use crate::MultisigError;
 
+/// Stores information about a group member
 #[account]
 #[derive(InitSpace)]
 pub struct AssetMember {
@@ -13,6 +14,7 @@ pub struct AssetMember {
     account_bump: u8,
 }
 
+/// Stores information about a group member
 #[account]
 #[derive(InitSpace)]
 pub struct GroupMember {
@@ -193,13 +195,15 @@ impl GroupMember {
     }
 }
 
+// Stores permissions with a bit flag 
+/// 1 << ? - Vote - Anyone with a weight > 0 can vote.
+/// 1 << ? - Execute - If the proposal passed then anyone can execute the transaction, 
+            /// but whatever rent they pay would not be returned to them but to the rent collector.
+/// 1 << 0 - Propose
+/// 1 << 1 - Add asset
 #[derive(AnchorDeserialize, AnchorSerialize, InitSpace, Clone, Copy)]
 pub struct Permissions {
     permissions: u8,
-    // 1 << ? - Vote - Anyone with a weight > 0 can vote.
-    // 1 << ? - Execute - If the proposal passed then anyone can execute the transaction.
-    // 1 << 0 - Propose
-    // 1 << 1 - Add asset
 }
 
 impl Permissions {

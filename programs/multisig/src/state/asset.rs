@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 
 use crate::{utils::FractionalThreshold, MultisigError};
 
+/// Stores information required to govern an asset
 #[account]
 #[derive(InitSpace)]
 pub struct Asset {
@@ -19,11 +20,11 @@ pub struct Asset {
 
     member_count: u32,
 
-    // Constraints
+    /// Constraints
     minimum_member_count: u32,
     minimum_vote_count: u32,
 
-    // PDA bumps
+    /// PDA bumps
     account_bump: u8,
     authority_bump: u8,
 }

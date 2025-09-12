@@ -40,6 +40,7 @@ pub struct CreateProposalTransactionInstructionAccounts<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Create a transaction associated with a particular proposal
 pub fn create_proposal_transaction_handler(
     ctx: Context<CreateProposalTransactionInstructionAccounts>,
     args: CreateProposalTransactionInstructionArgs,

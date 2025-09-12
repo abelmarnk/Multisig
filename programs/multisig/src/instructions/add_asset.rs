@@ -12,7 +12,6 @@ use crate::state::{
     member::{AssetMember, GroupMember},
 };
 
-// Instruction arguments struct for AddAssetMintInstructionAccounts
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct AddAssetMintInstructionArgs {
     pub member_key_1: Pubkey,
@@ -32,7 +31,6 @@ pub struct AddAssetMintInstructionArgs {
     pub minimum_vote_count: u32,
 }
 
-// Instruction arguments struct for AddAssetTokenInstructionAccounts
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct AddAssetTokenInstructionArgs {
     pub member_key_1: Pubkey,
@@ -138,6 +136,7 @@ pub struct AddAssetMintInstructionAccounts<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Registers a new token mint that is controlled by the multisig
 pub fn add_asset_mint_handler(
     ctx: Context<AddAssetMintInstructionAccounts>,
     args: AddAssetMintInstructionArgs,
@@ -329,6 +328,7 @@ pub struct AddAssetTokenInstructionAccounts<'info> {
     pub system_program: Program<'info, System>,
 }
 
+// Registers a new token mint that is controlled by the multisig
 pub fn add_asset_token_handler(
     ctx: Context<AddAssetTokenInstructionAccounts>,
     args: AddAssetTokenInstructionArgs,

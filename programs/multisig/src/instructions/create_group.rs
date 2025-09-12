@@ -8,7 +8,6 @@ use crate::{
     utils::fractional_threshold::FractionalThreshold,
 };
 
-// Instruction arguments struct for CreateGroupInstructionAccounts
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct CreateGroupInstructionArgs {
     pub group_seed: Pubkey,
@@ -40,14 +39,14 @@ pub struct CreateGroupInstructionAccounts<'info> {
     )]
     pub group: Account<'info, Group>,
 
-    // 5 initial members
+    /// 5 initial members
     pub member_1: SystemAccount<'info>,
     pub member_2: SystemAccount<'info>,
     pub member_3: SystemAccount<'info>,
     pub member_4: SystemAccount<'info>,
     pub member_5: SystemAccount<'info>,
 
-    // Each member has a PDA account storing their membership state
+    /// Each member has a PDA account storing their membership state
     #[account(
         init,
         payer = payer,
@@ -98,7 +97,8 @@ pub struct CreateGroupInstructionAccounts<'info> {
 
     pub system_program: Program<'info, System>,
 }
-
+/// Initializes a new governance group account with its initial configuration, seeds, 
+/// and proposal index tracking as well as other state for maintaining the multisig.
 pub fn create_group_handler(
     ctx: Context<CreateGroupInstructionAccounts>,
     args: CreateGroupInstructionArgs,
@@ -169,7 +169,7 @@ pub fn create_group_handler(
         &ctx.accounts.member_5,
     ];
 
-    // Initialize all member accounts using iterators
+    // Initialize all member accounts
     for ((((account, member), weight), permissions), bump) in member_accounts
         .into_iter()
         .zip(members.into_iter())
