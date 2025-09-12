@@ -8,7 +8,7 @@ It's inspired by other projects, including:
 
 ---
 
-## 📖 Overview
+## Overview
 
 At its core, this program manages:
 
@@ -22,7 +22,7 @@ This model allows organizations to govern **multiple assets under one group**, w
 
 ---
 
-## 🔑 How It Differs from Standard Multisig
+## How It Differs from Standard Multisig
 
 Traditional multisig systems enforce approval from the same set of signers across all actions.  
 This program enables **asset-specific governance**, where:
@@ -36,7 +36,7 @@ This design is especially suited for DAOs or organizations managing **many asset
 
 ---
 
-## ✨ Features
+## Features
 
 The program provides a complete lifecycle of **governance, voting, execution, and cleanup**:
 
@@ -76,10 +76,10 @@ The program provides a complete lifecycle of **governance, voting, execution, an
 
 ---
 
-## 🚀 Building and Deploying
+## Building and Deploying
  - To be filled
 
-## 📜 License
+## License
 
 This project will be licensed under the **Apache License 2.0**.
 
