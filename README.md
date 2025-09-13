@@ -1,6 +1,7 @@
 # Solana Multisig Program
 
-This project is a **Solana anchor program** that implements a flexible, asset-aware multisig governance system, it is still in the process of being built
+This project is a **Solana anchor program** that implements a flexible, asset-aware multisig governance system, it is still in the process of being built.
+
 It's inspired by other projects, including:  
 
 - [Squads](https://github.com/Squads-Protocol/v4)  
