@@ -6,4 +6,3 @@
 - Allow for the transaction to be in an intermidiary state where the data is stored onchain but the proposal is yet to be passed, it would allow for it to be verified more easily by anyone who wants to make a vote
 - Make it possible for an asset configuration being stale to invalidate a proposal
 - For the above, we would then add a grace period that would count after the transaction has been created, rather than using the index to check if it is stale, it would be group wide, the proposal index and state index would then also have to be stored in each asset
-- Add a variable number of config changes in a config transaction
