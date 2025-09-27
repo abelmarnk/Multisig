@@ -11,7 +11,7 @@ pub struct FractionalThreshold {
 
 impl FractionalThreshold {
     pub fn is_valid(&self) -> Result<()> {
-        if self.denominator.eq(&0) || self.numerator.ge(&self.denominator) {
+        if self.denominator.eq(&0) || self.numerator.ge(&self.denominator) || self.numerator.eq(&0){
             return Err(MultisigError::InvalidThreshold.into());
         }
 
@@ -19,7 +19,7 @@ impl FractionalThreshold {
     }
 
     pub fn new_from_values(numerator: u32, denominator: u32) -> Result<FractionalThreshold> {
-        if denominator.eq(&0) || numerator.ge(&denominator) {
+        if denominator.eq(&0) || numerator.ge(&denominator) || numerator.eq(&0) {
             return Err(MultisigError::InvalidThreshold.into());
         }
 
@@ -30,7 +30,7 @@ impl FractionalThreshold {
     }
 
     /// Compares two fractional vaules
-    pub fn greater_than_or_equal(&self, numerator: u64, denominator: u64) -> Result<bool> {
+    pub fn less_than_or_equal(&self, numerator: u64, denominator: u64) -> Result<bool> {
         if self.denominator == 0 
             || denominator == 0
         {
@@ -46,25 +46,4 @@ impl FractionalThreshold {
                 .ok_or(ProgramError::ArithmeticOverflow)?))
     }
 
-    /// Compares two fractional vaules
-    pub fn threshold_greater_than_or_equal(&self, threshold: &FractionalThreshold) -> Result<bool> {
-        // It's safe to use unwrap since the threshold can't be in an invalid state
-        self.greater_than_or_equal(
-            u64::from(threshold.numerator),
-            u64::from(threshold.denominator),
-        )
-    }
-
-    /// This function is used for reducing the other fraction to at most 1 - (X), where X is
-    /// the current fraction in `self`
-    pub fn normalize_other(&self, threshold: &mut FractionalThreshold) -> Result<()> {
-        if self.threshold_greater_than_or_equal(threshold)? {
-            *threshold = FractionalThreshold {
-                numerator: self.denominator.saturating_sub(self.numerator),
-                denominator: self.denominator,
-            };
-        }
-
-        Ok(())
-    }
 }

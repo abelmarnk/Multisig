@@ -25,7 +25,6 @@ pub struct VoteOnConfigProposalInstructionArgs {
 
 #[derive(Accounts)]
 #[instruction(args: VoteOnNormalProposalInstructionArgs)]
-// The seeds binds accounts together so some checks are omitted
 pub struct VoteOnNormalProposalInstructionAccounts<'info> {
     #[account(
         mut,
@@ -70,12 +69,54 @@ pub struct VoteOnNormalProposalInstructionAccounts<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[inline(always)]// This function is only called once in the handler
+// Other checks are performed in the handler
+fn vote_on_normal_proposal_checks(
+    ctx: &Context<VoteOnNormalProposalInstructionAccounts>,
+    args: &VoteOnNormalProposalInstructionArgs,
+)->Result<()>{
+    // Check the proposal is still open
+    require!(
+        ctx.accounts.proposal.get_state() == ProposalState::Open,
+        MultisigError::ProposalNotOpen
+    );
+
+    let now = Clock::get()?.unix_timestamp;
+
+    require_gt!(
+        ctx.accounts.proposal.get_proposal_deadline_timestamp(),
+        now,
+        MultisigError::ProposalExpired
+    );
+
+    // Validate index
+    require_gt!(
+        ctx.accounts.proposal.get_assets().len(),
+        usize::from(args.voting_asset_index),
+        MultisigError::InvalidAssetIndex
+    );
+
+    // Validate asset and user
+    require_keys_eq!(
+        *ctx.accounts.proposal.get_assets()[usize::from(args.voting_asset_index)].get_asset(),
+        *ctx.accounts.asset.get_asset_address(),
+        MultisigError::InvalidAsset
+    );
+
+    Ok(())
+}
+
 /// Vote on a proposal that would execute a transaction and uses assets 
 /// controlled by the multisig if passed.
+/// This instruction can be calleb by any group member
 pub fn vote_on_normal_proposal_handler(
     ctx: Context<VoteOnNormalProposalInstructionAccounts>,
     args: VoteOnNormalProposalInstructionArgs,
 ) -> Result<()> {
+
+    // Perform preliminary checks
+    vote_on_normal_proposal_checks(&ctx, &args)?;
+
     // Destructure the arguments
     let VoteOnNormalProposalInstructionArgs {
         voting_asset_index,
@@ -88,36 +129,9 @@ pub fn vote_on_normal_proposal_handler(
     let asset_member = &ctx.accounts.asset_member;
     let vote_record = &mut ctx.accounts.vote_record;
 
-    // Check the proposal is still open
-    require!(
-        proposal.get_state() == ProposalState::Open,
-        MultisigError::ProposalNotOpen
-    );
-
-    if Clock::get()?
-        .unix_timestamp
-        .gt(&proposal.get_expiration_timestamp())
-    {
-        proposal.set_state(ProposalState::Expired)?;
-        return Err(MultisigError::ProposalExpired.into());
-    }
-
-    let asset_index = usize::from(voting_asset_index);
-
-    // Validate index
-    require!(
-        asset_index.lt(&proposal.get_assets().len()),
-        MultisigError::InvalidAssetIndex
-    );
-
-    // Validate asset and user
-    require_keys_eq!(
-        *proposal.get_assets()[asset_index].get_asset(),
-        *asset.get_asset_address(),
-        MultisigError::InvalidAsset
-    );
-
     let weight = asset_member.get_weight();
+
+    let asset_index= usize::from(args.voting_asset_index);
 
     // First vote or re-vote?
     if vote_record.to_account_info().data_is_empty() {
@@ -246,11 +260,37 @@ pub struct VoteOnConfigProposalInstructionAccounts<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[inline(always)]// This function is only called once in the handler
+// Other checks are performed in the handler
+fn vote_on_config_proposal_checks(
+    ctx: &Context<VoteOnConfigProposalInstructionAccounts>,
+
+)->Result<()>{
+    // Check the proposal is still open
+    require!(
+        ctx.accounts.proposal.get_state() == ProposalState::Open,
+        MultisigError::ProposalNotOpen
+    );
+
+    let now = Clock::get()?.unix_timestamp;
+
+    require_gt!(
+        ctx.accounts.proposal.get_proposal_deadline_timestamp(),
+        now,
+        MultisigError::ProposalExpired
+    );
+
+    Ok(())
+}
+
 /// Vote on a proposal that changes the configuration of a group or asset if passed.
 pub fn vote_on_config_proposal_handler(
     ctx: Context<VoteOnConfigProposalInstructionAccounts>,
     args: VoteOnConfigProposalInstructionArgs,
 ) -> Result<()> {
+
+    vote_on_config_proposal_checks(&ctx)?;
+
     // Destructure the arguments
     let VoteOnConfigProposalInstructionArgs { vote } = args;
 
@@ -269,7 +309,7 @@ pub fn vote_on_config_proposal_handler(
     // Expiry check
     if Clock::get()?
         .unix_timestamp
-        .gt(&proposal.get_expiration_timestamp())
+        .gt(&proposal.get_proposal_deadline_timestamp())
     {
         proposal.set_state(ProposalState::Expired)?;
         return Err(MultisigError::ProposalExpired.into());

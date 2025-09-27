@@ -1,3 +1,4 @@
+
 use anchor_lang::prelude::*;
 
 #[error_code]
@@ -6,8 +7,6 @@ pub enum MultisigError {
     InvalidInitialMembersLength,
     #[msg("Initial names must be exactly 5.")]
     InvalidNamesLength,
-    #[msg("Initial URIs must be exactly 5.")]
-    InvalidUrisLength,
     #[msg("The name provided is greater than 32.")]
     NameTooLong,
     #[msg("The URI provided is greater than 64.")]
@@ -114,10 +113,14 @@ pub enum MultisigError {
     GroupMemberStillActive,
     #[msg("Proposal is still active")]
     ProposalStillActive,
+    #[msg("Proposal is still timelocked")]
+    ProposalStillTimelocked,
     #[msg("Unexpected proposal")]
     UnexpectedProposal,
     #[msg("Unexpected rent collector")]
-    UnexpectedRentCollector
+    UnexpectedRentCollector,
+    #[msg("Expiry offset from time lock is too small")]
+    ExpiriyOffsetTooSmall,
 }
 
 /// Implement Into<ProgramError> for MultisigError

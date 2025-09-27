@@ -1,4 +1,4 @@
-use crate::{utils::FractionalThreshold, MultisigError};
+use crate::{MultisigError, utils::FractionalThreshold};
 use anchor_lang::prelude::*;
 
 /// Stores information required to govern a group
@@ -35,14 +35,8 @@ pub struct Group {
 
     proposal_index_after_stale: u64,
 
-    /// Total number of members (tracked by number of NFTs minted)
+    /// Total number of members
     member_count: u32,
-
-    /// Default timelock
-    default_timelock_offset: u32,
-
-    /// Time before a proposal times out
-    expiry_offset: u32,
 
     /// PDA bump for the group account itself
     account_bump: u8,
@@ -53,17 +47,15 @@ impl Group {
         group_seed: Pubkey,
         rent_collector: Pubkey,
         add_threshold: FractionalThreshold,
-        mut not_add_threshold: FractionalThreshold,
+        not_add_threshold: FractionalThreshold,
         remove_threshold: FractionalThreshold,
-        mut not_remove_threshold: FractionalThreshold,
+        not_remove_threshold: FractionalThreshold,
         change_config_threshold: FractionalThreshold,
-        mut not_change_config_threshold: FractionalThreshold,
+        not_change_config_threshold: FractionalThreshold,
         minimum_member_count: u32,
         minimum_vote_count: u32,
         max_member_weight: u32,
         member_count: u32,
-        default_timelock_offset: u32,
-        expiry_offset: u32,
         account_bump: u8,
     ) -> Result<Self> {
         // Threshold checks
@@ -74,20 +66,10 @@ impl Group {
         not_remove_threshold.is_valid()?;
         not_change_config_threshold.is_valid()?;
 
-        // Normalize all "not_*" thresholds based on their normal ones
-        add_threshold.normalize_other(&mut not_add_threshold)?;
-        remove_threshold.normalize_other(&mut not_remove_threshold)?;
-        change_config_threshold.normalize_other(&mut not_change_config_threshold)?;
+        require_gt!(member_count, 0, MultisigError::InvalidMemberCount);
+        require_gt!(member_count, minimum_vote_count, MultisigError::InvalidThreshold);
+        require_gte!(member_count, minimum_member_count, MultisigError::InvalidThreshold);
 
-        // Member count checks
-        if minimum_vote_count >= member_count {
-            return Err(error!(MultisigError::InvalidThreshold));
-        }
-        if minimum_member_count > member_count {
-            return Err(error!(MultisigError::InvalidThreshold));
-        }
-
-        // Build group
         let group = Self {
             group_seed,
             rent_collector,
@@ -103,8 +85,6 @@ impl Group {
             next_proposal_index: 0,
             proposal_index_after_stale: 0,
             member_count,
-            default_timelock_offset,
-            expiry_offset,
             account_bump
         };
 
@@ -139,8 +119,6 @@ impl Group {
     pub fn set_add_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.add_threshold = threshold;
-        self.add_threshold
-            .normalize_other(&mut self.not_add_threshold)?;
         Ok(())
     }
 
@@ -152,8 +130,6 @@ impl Group {
     pub fn set_not_add_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.not_add_threshold = threshold;
-        self.add_threshold
-            .normalize_other(&mut self.not_add_threshold)?;
         Ok(())
     }
 
@@ -165,8 +141,6 @@ impl Group {
     pub fn set_remove_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.remove_threshold = threshold;
-        self.remove_threshold
-            .normalize_other(&mut self.not_remove_threshold)?;
         Ok(())
     }
 
@@ -178,8 +152,6 @@ impl Group {
     pub fn set_not_remove_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.not_remove_threshold = threshold;
-        self.remove_threshold
-            .normalize_other(&mut self.not_remove_threshold)?;
         Ok(())
     }
 
@@ -191,8 +163,6 @@ impl Group {
     pub fn set_change_config_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.change_config_threshold = threshold;
-        self.change_config_threshold
-            .normalize_other(&mut self.not_change_config_threshold)?;
         Ok(())
     }
 
@@ -207,8 +177,6 @@ impl Group {
     ) -> Result<()> {
         threshold.is_valid()?;
         self.not_change_config_threshold = threshold;
-        self.change_config_threshold
-            .normalize_other(&mut self.not_change_config_threshold)?;
         Ok(())
     }
 
@@ -226,11 +194,7 @@ impl Group {
             .member_count
             .saturating_sub(1);
 
-        if new_count.le(&self.minimum_vote_count) {
-            return Err(MultisigError::InvalidThreshold.into());
-        }
-
-        if new_count.lt(&self.minimum_member_count) {
+        if new_count.le(&self.minimum_vote_count) || new_count.lt(&self.minimum_member_count){
             return Err(MultisigError::InvalidMemberCount.into());
         }
 
@@ -240,19 +204,19 @@ impl Group {
     }
 
     #[inline(always)]
-    pub fn get_member_count(&self) -> u32 {
-        self.member_count
+    pub fn get_member_count(&self) -> u32 { 
+        self.member_count 
     }
 
     #[inline(always)]
     pub fn set_minimum_vote_count(&mut self, count: u32) -> Result<()> {
         if count.ge(&self.member_count) {
-            return Err(error!(crate::MultisigError::InvalidThreshold));
+            return Err(crate::MultisigError::InvalidMemberCount.into());
         }
         self.minimum_vote_count = count;
         Ok(())
     }
-
+    
     #[inline(always)]
     pub fn get_minimum_vote_count(&self) -> u32 {
         self.minimum_vote_count
@@ -260,8 +224,8 @@ impl Group {
 
     #[inline(always)]
     pub fn set_minimum_member_count(&mut self, count: u32) -> Result<()> {
-        if count.lt(&self.member_count) {
-            return Err(error!(crate::MultisigError::InvalidMemberCount));
+        if count.gt(&self.member_count) {
+            return Err(crate::MultisigError::InvalidMemberCount.into());
         }
         self.minimum_member_count = count;
         Ok(())
@@ -296,24 +260,5 @@ impl Group {
         self.proposal_index_after_stale = self.next_proposal_index;
     }
 
-    #[inline(always)]
-    pub fn get_timelock_offset(&self) -> u32 {
-        self.default_timelock_offset
-    }
-
-    #[inline(always)]
-    pub fn get_expiry_offset(&self) -> u32 {
-        self.expiry_offset
-    }
-
-    #[inline(always)]
-    pub fn set_timelock_offset(&mut self, offset: u32) {
-        self.default_timelock_offset = offset;
-    }
-
-    #[inline(always)]
-    pub fn set_expiry_offset(&mut self, offset: u32) {
-        self.expiry_offset = offset;
-    }
 
 }

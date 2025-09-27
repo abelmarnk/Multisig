@@ -1,9 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::hash;
 
-use crate::state::{
-    error::MultisigError, Group, NormalProposal, ProposalTransaction, SerializableInstruction,
-};
+use crate::{ProposalState, state::{
+    Group, NormalProposal, ProposalTransaction, SerializableInstruction, error::MultisigError
+}};
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct CreateProposalTransactionInstructionArgs {
@@ -13,9 +13,10 @@ pub struct CreateProposalTransactionInstructionArgs {
 #[derive(Accounts)]
 #[instruction(args: CreateProposalTransactionInstructionArgs)]
 pub struct CreateProposalTransactionInstructionAccounts<'info> {
+
     #[account(
-        mut,
-        close = proposer,
+        seeds = [b"proposal", proposal.get_group().as_ref(), proposal.get_proposal_seed().as_ref()],
+        bump = proposal.get_account_bump(),
     )]
     pub proposal: Account<'info, NormalProposal>,
 
@@ -29,50 +30,49 @@ pub struct CreateProposalTransactionInstructionAccounts<'info> {
     pub proposal_transaction: Account<'info, ProposalTransaction>,
 
     #[account(mut)]
-    pub group: Account<'info, Group>,
-
-    #[account(mut)]
-    pub proposer: SystemAccount<'info>,
-
-    #[account(mut)]
     pub payer: Signer<'info>,
 
     pub system_program: Program<'info, System>,
 }
 
+#[inline(always)]// This function is only called once in the handler
+// Other checks are performed in the handler
+fn create_proposal_transaction_checks(
+    ctx: &Context<CreateProposalTransactionInstructionAccounts>,
+    args: &CreateProposalTransactionInstructionArgs,
+)->Result<()>{
+    // Validate proposal
+    require!(
+        ctx.accounts.proposal.get_state() == ProposalState::Open || 
+        ctx.accounts.proposal.get_state() == ProposalState::Passed,
+        MultisigError::ProposalNotOpen
+    );
+
+    // Hash check
+    let expected_hash = ctx.accounts.proposal.get_instruction_hash();
+    let actual_hash = hash::hash(&args.raw_instruction).to_bytes();
+    require!(
+        actual_hash == *expected_hash,
+        MultisigError::InvalidInstructionHash
+    );
+
+    Ok(())
+}
+
 /// Create a transaction associated with a particular proposal
+/// This instruction can be called by anyone
 pub fn create_proposal_transaction_handler(
     ctx: Context<CreateProposalTransactionInstructionAccounts>,
     args: CreateProposalTransactionInstructionArgs,
 ) -> Result<()> {
 
+    // Preliminary checks
+    create_proposal_transaction_checks(&ctx, &args)?;
+
     let CreateProposalTransactionInstructionArgs { raw_instruction } = args;
 
-    let group = &mut ctx.accounts.group;
     let proposal = &ctx.accounts.proposal;
     let proposal_tx = &mut ctx.accounts.proposal_transaction;
-
-    // Validate proposer
-    require_keys_eq!(
-        ctx.accounts.proposer.key(),
-        *proposal.get_proposer(),
-        MultisigError::InvalidProposer
-    );
-
-    // Validate proposal is still valid
-    require_gte!(
-        proposal.get_proposal_index(),
-        group.get_proposal_index_after_stale(),
-        MultisigError::ProposalStale
-    );
-
-    // Hash check
-    let expected_hash = proposal.get_instruction_hash();
-    let actual_hash = hash::hash(&raw_instruction).to_bytes();
-    require!(
-        actual_hash == *expected_hash,
-        MultisigError::InvalidInstructionHash
-    );
 
     // Deserialize into custom struct
     let serializable_instruction: SerializableInstruction =
@@ -90,7 +90,9 @@ pub fn create_proposal_transaction_handler(
     for proposal_asset in proposal_assets.iter() {
         let index = proposal_asset.get_index() as usize;
         let expected_key = *proposal_asset.get_asset();
-        let acct_meta = &serializable_instruction.accounts[index]; // Bounds checked above
+        let acct_meta = 
+            &serializable_instruction.accounts.get(index).
+            ok_or(MultisigError::InvalidAssetIndex)?;
         require!(acct_meta.key == expected_key, MultisigError::UnexpectedAsset);
     }
 
@@ -106,9 +108,8 @@ pub fn create_proposal_transaction_handler(
         .collect();
 
     let transaction = ProposalTransaction::new(
-        group.key(),
+        proposal.key(),
         proposal.get_proposal_index(),
-        proposal.get_valid_from_timestamp(),
         asset_indices,
         asset_authority_bumps,
         serializable_instruction,

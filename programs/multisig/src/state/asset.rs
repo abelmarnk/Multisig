@@ -47,8 +47,18 @@ impl Asset {
         account_bump: u8,
         authority_bump: u8,
     ) -> Result<Self> {
-        require_gt!(minimum_vote_count, 0, MultisigError::InvalidThreshold);
+        require_gt!(minimum_vote_count, 1, MultisigError::InvalidThreshold);
         require_gt!(minimum_member_count, 0, MultisigError::InvalidMemberCount);
+
+        // Validate each threshold before proceeding
+        use_threshold.is_valid()?;
+        not_use_threshold.is_valid()?;
+        add_threshold.is_valid()?;
+        not_add_threshold.is_valid()?;
+        remove_threshold.is_valid()?;
+        not_remove_threshold.is_valid()?;
+        change_config_threshold.is_valid()?;
+        not_change_config_threshold.is_valid()?;
 
         Ok(Self {
             asset_address,
@@ -67,6 +77,7 @@ impl Asset {
             authority_bump,
         })
     }
+
 
     #[inline(always)]
     pub fn get_asset_address(&self) -> &Pubkey {
@@ -116,67 +127,48 @@ impl Asset {
     pub fn set_use_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.use_threshold = threshold;
-        self.use_threshold
-            .normalize_other(&mut self.not_use_threshold)?;
         Ok(())
     }
 
     pub fn set_not_use_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.not_use_threshold = threshold;
-        self.use_threshold
-            .normalize_other(&mut self.not_use_threshold)?;
         Ok(())
     }
 
     pub fn set_add_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.add_threshold = threshold;
-        self.add_threshold
-            .normalize_other(&mut self.not_add_threshold)?;
         Ok(())
     }
 
     pub fn set_not_add_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.not_add_threshold = threshold;
-        self.add_threshold
-            .normalize_other(&mut self.not_add_threshold)?;
         Ok(())
     }
 
     pub fn set_remove_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.remove_threshold = threshold;
-        self.remove_threshold
-            .normalize_other(&mut self.not_remove_threshold)?;
         Ok(())
     }
 
     pub fn set_not_remove_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.not_remove_threshold = threshold;
-        self.remove_threshold
-            .normalize_other(&mut self.not_remove_threshold)?;
         Ok(())
     }
 
     pub fn set_change_config_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
         threshold.is_valid()?;
         self.change_config_threshold = threshold;
-        self.change_config_threshold
-            .normalize_other(&mut self.not_change_config_threshold)?;
         Ok(())
     }
 
-    pub fn set_not_change_config_threshold(
-        &mut self,
-        threshold: FractionalThreshold,
-    ) -> Result<()> {
+    pub fn set_not_change_config_threshold(&mut self, threshold: FractionalThreshold,) -> Result<()> {
         threshold.is_valid()?;
         self.not_change_config_threshold = threshold;
-        self.change_config_threshold
-            .normalize_other(&mut self.not_change_config_threshold)?;
         Ok(())
     }
 
@@ -213,11 +205,7 @@ impl Asset {
             .member_count
             .saturating_sub(1);
 
-        if new_count.le(&self.minimum_vote_count) {
-            return Err(MultisigError::InvalidThreshold.into());
-        }
-
-        if new_count.lt(&self.minimum_member_count) {
+        if new_count.le(&self.minimum_vote_count) || new_count.lt(&self.minimum_member_count){
             return Err(MultisigError::InvalidMemberCount.into());
         }
 
@@ -234,7 +222,7 @@ impl Asset {
     #[inline(always)]
     pub fn set_minimum_vote_count(&mut self, count: u32) -> Result<()> {
         if count.ge(&self.member_count) {
-            return Err(crate::MultisigError::InvalidThreshold.into());
+            return Err(crate::MultisigError::InvalidMemberCount.into());
         }
         self.minimum_vote_count = count;
         Ok(())
@@ -242,7 +230,7 @@ impl Asset {
 
     #[inline(always)]
     pub fn set_minimum_member_count(&mut self, count: u32) -> Result<()> {
-        if count.lt(&self.member_count) {
+        if count.gt(&self.member_count) {
             return Err(crate::MultisigError::InvalidMemberCount.into());
         }
         self.minimum_member_count = count;

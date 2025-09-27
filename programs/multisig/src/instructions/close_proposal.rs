@@ -1,18 +1,18 @@
-use crate::state::{error::MultisigError, group::Group, proposal::{ConfigProposal, ProposalState}};
+use crate::{Group, state::{error::MultisigError, proposal::{ConfigProposal, ProposalState}}};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct CloseProposalInstructionAccounts<'info> {
+
     #[account(
-        mut,
-        seeds = [b"group", group.get_group_seed().as_ref()],
+        seeds = [b"group", proposal.get_group().as_ref()],
         bump = group.get_account_bump()
     )]
     pub group: Account<'info, Group>,
 
     #[account(
         mut,
-        seeds = [b"proposal", group.key().as_ref(), proposal.get_proposal_seed().as_ref()],
+        seeds = [b"proposal", proposal.get_group().as_ref(), proposal.get_proposal_seed().as_ref()],
         bump = proposal.get_account_bump(),
         close = proposer,
     )]
@@ -22,12 +22,12 @@ pub struct CloseProposalInstructionAccounts<'info> {
     pub proposer: SystemAccount<'info>,
 }
 
-/// Close a proposal that failed or expired and refund the rent to the proposer
-pub fn close_proposal_handler(
-    ctx: Context<CloseProposalInstructionAccounts>,
-) -> Result<()> {
-    let proposal = &ctx.accounts.proposal;
+#[inline(always)]// This function is only called once in the handler
+fn close_proposal_checks(
+    ctx: &Context<CloseProposalInstructionAccounts>
+)->Result<()>{
     let group = &ctx.accounts.group;
+    let proposal = &ctx.accounts.proposal;
 
     // Ensure proposer matches
     require_keys_eq!(
@@ -36,20 +36,35 @@ pub fn close_proposal_handler(
         MultisigError::InvalidProposer
     );
 
-    // Ensure proposal has either failed or expired
-    let state = proposal.get_state();
+    // Ensure the proposal is in a state that allows closing the transaction
 
-    require!(
-        state == ProposalState::Failed,
-        MultisigError::ProposalNotClosable
-    );
+    let now = Clock::get()?.unix_timestamp;
 
-    // If it hasn't entered an unusable state check it has becomes stale
-    require_gt!(
-        group.get_proposal_index_after_stale(),
-        proposal.get_proposal_index(),
-        MultisigError::ProposalStale
-    );
+    match proposal.get_state() {
+        ProposalState::Open =>{
+            require_gt!(
+                now,
+                proposal.get_proposal_deadline_timestamp(),
+                MultisigError::ProposalStillActive
+            )
+        },
+        ProposalState::Passed =>{
+             require_gt!(
+                    group.get_proposal_index_after_stale(),
+                    proposal.get_proposal_index(),
+                    MultisigError::ProposalStillActive
+            );
+        },
+        ProposalState::Expired | ProposalState::Failed =>{} // Ok
+    }
 
     Ok(())
+}
+
+/// Close a proposal that failed or expired and refund the rent to the proposer
+/// This instruction can be called by anyone
+pub fn close_proposal_handler(
+    ctx: Context<CloseProposalInstructionAccounts>,
+) -> Result<()> {
+    close_proposal_checks(&ctx)
 }

@@ -7,16 +7,16 @@ pub struct CreateNormalProposalInstructionArgs {
     pub asset_keys: Vec<Pubkey>,
     pub asset_indices: Vec<u8>,
     pub authority_bumps: Vec<u8>,
-    pub expiry_offset: Option<u32>,
-    pub timelock_offset: Option<u32>,
+    pub timelock_offset: u32,
+    pub proposal_deadline_timestamp: i64,
     pub instruction_hash: [u8; HASH_BYTES_LENGTH],
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct CreateConfigProposalInstructionArgs {
     pub proposal_seed: Pubkey,
-    pub timelock_offset: Option<u32>,
-    pub expiry_offset: Option<u32>,
+    pub timelock_offset: u32,
+    pub proposal_deadline_timestamp: i64,
     pub config_change: ConfigChange,
 }
 
@@ -55,23 +55,12 @@ pub struct CreateNormalProposalInstructionAccounts<'info> {
     pub system_program: Program<'info, System>,
 }
 
-/// Creates a proposal with a transaction that uses specific assets and requires 
-/// meeting a quorom for each individual asset.
-pub fn create_normal_proposal_handler(
-    ctx: Context<CreateNormalProposalInstructionAccounts>,
-    args: CreateNormalProposalInstructionArgs,
-) -> Result<()> {
-
-    let CreateNormalProposalInstructionArgs {
-        proposal_seed,
-        asset_keys,
-        asset_indices,
-        authority_bumps,
-        expiry_offset,
-        timelock_offset,
-        instruction_hash,
-    } = args;
-
+#[inline(always)]// This function is only called once in the handler
+// Other checks are performed in the handler
+fn create_config_proposal_checks(
+    ctx: &Context<CreateNormalProposalInstructionAccounts>,
+    args: &CreateNormalProposalInstructionArgs,
+)->Result<()>{
     // Verify proposer owns membership asset
     require!(
         ctx.accounts.proposer_group_account.has_propose(),
@@ -81,29 +70,53 @@ pub fn create_normal_proposal_handler(
     // Verify asset count constraint
     require_gte!(
         constants::MAX_ASSET_USE,
-        asset_keys.len(),
+        args.asset_keys.len(),
         MultisigError::TooManyAssets
     );
 
     require_eq!(
-        asset_keys.len(),
-        asset_indices.len(),
+        args.asset_keys.len(),
+        args.asset_indices.len(),
         MultisigError::LengthMismatch
     );
 
     require_eq!(
-        asset_indices.len(),
-        authority_bumps.len(),
+        args.asset_indices.len(),
+        args.authority_bumps.len(),
         MultisigError::LengthMismatch
     );
 
     // Ensure sorted + no duplicates
-    for i in 1..asset_keys.len() {
+    for i in 1..args.asset_keys.len() {
         require!(
-            asset_keys[i - 1] < asset_keys[i],
+            args.asset_keys[i - 1] < args.asset_keys[i],
             MultisigError::AssetsNotSortedOrDuplicate
         );
     }
+
+    Ok(())
+}
+
+/// Creates a proposal with a transaction that uses specific assets and requires 
+/// meeting a quorom for each individual asset.
+/// This instruction can only be called by those with the required permissions
+pub fn create_normal_proposal_handler(
+    ctx: Context<CreateNormalProposalInstructionAccounts>,
+    args: CreateNormalProposalInstructionArgs,
+) -> Result<()> {
+
+    // Perform preliminary checks
+    create_config_proposal_checks(&ctx, &args)?;
+
+    let CreateNormalProposalInstructionArgs {
+        proposal_seed,
+        asset_keys,
+        asset_indices,
+        authority_bumps,
+        timelock_offset,
+        instruction_hash,
+        proposal_deadline_timestamp
+    } = args;
 
     // Construct ProposalAssets
     let proposal_assets: Vec<ProposalAsset> = asset_keys
@@ -124,9 +137,9 @@ pub fn create_normal_proposal_handler(
         proposal_assets,
         ctx.bumps.proposal,
         group.get_and_increment_proposal_index()?,
+        proposal_deadline_timestamp,
         instruction_hash,
-        timelock_offset.unwrap_or(group.get_timelock_offset()),
-        expiry_offset.unwrap_or(group.get_expiry_offset()),
+        timelock_offset,
     )?);
 
     Ok(())
@@ -177,6 +190,7 @@ pub struct CreateConfigProposalInstructionAccounts<'info> {
 
 /// Creates a proposal that targets a group or a specific asset and requires 
 /// meeting a quorom for that group or asset to change it's config
+/// This instruction can only be called by those with the required permissions
 pub fn create_config_proposal_handler(
     ctx: Context<CreateConfigProposalInstructionAccounts>,
     args: CreateConfigProposalInstructionArgs,
@@ -185,8 +199,8 @@ pub fn create_config_proposal_handler(
     let CreateConfigProposalInstructionArgs {
         proposal_seed,
         timelock_offset,
-        expiry_offset,
         config_change,
+        proposal_deadline_timestamp
     } = args;
 
 
@@ -201,11 +215,6 @@ pub fn create_config_proposal_handler(
         MultisigError::InsufficientPermissions
     );
 
-    // Use provided offsets or group defaults
-    let expiry = expiry_offset.unwrap_or(group.get_expiry_offset());
-
-    let timelock = timelock_offset.unwrap_or(group.get_timelock_offset());
-
     // If this is a group-targeted change, construct a group ConfigProposal
     if config_change.is_group_change() {
         let new_proposal = ConfigProposal::new(
@@ -214,8 +223,8 @@ pub fn create_config_proposal_handler(
             group.key(),
             ctx.bumps.proposal,
             group.get_and_increment_proposal_index()?,
-            timelock,
-            expiry,
+            timelock_offset,
+            proposal_deadline_timestamp,
             ProposalTarget::Group,
             config_change,
         )?;
@@ -236,8 +245,8 @@ pub fn create_config_proposal_handler(
             group.key(),
             ctx.bumps.proposal,
             group.get_and_increment_proposal_index()?,
-            timelock,
-            expiry,
+            timelock_offset,
+            proposal_deadline_timestamp,
             ProposalTarget::Asset(*asset.get_asset_address()),
             config_change,
         )?);

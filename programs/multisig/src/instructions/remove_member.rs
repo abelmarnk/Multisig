@@ -28,7 +28,6 @@ pub struct RemoveGroupMemberInstructionAccounts<'info> {
     )]
     pub group_member_account: Account<'info, GroupMember>,
 
-    /// ConfigProposal approving this removal
     #[account(
         mut,
         seeds = [b"proposal", group.key().as_ref(), proposal.get_proposal_seed().as_ref()],
@@ -38,52 +37,70 @@ pub struct RemoveGroupMemberInstructionAccounts<'info> {
     pub proposal: Account<'info, ConfigProposal>,
 
     #[account(mut)]
-    /// CHECK: rent collector of the group
+    /// CHECK: Rent collector
     pub rent_collector: UncheckedAccount<'info>,
 
-    /// Account that opened the proposal, receives proposal's rent
     #[account(mut)]
     pub proposer: SystemAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }
-/// Removes an existing group member once a proposal to remove them has passed, 
-/// closes their GroupMember account and sends the rent to the rent_collector.
-pub fn remove_group_member_handler(
-    ctx: Context<RemoveGroupMemberInstructionAccounts>,
-) -> Result<()> {
-    let group = &mut ctx.accounts.group;
-    let rent_collector = &ctx.accounts.rent_collector;
-    let proposal = &ctx.accounts.proposal;
+
+#[inline(always)]// This function is only called once in the handler
+// Other checks are performed in the handler
+fn remove_group_member_checks(
+    ctx: &Context<RemoveGroupMemberInstructionAccounts>,
+)->Result<()>{
 
     // Validate rent collector
     require_keys_eq!(
-        rent_collector.key(),
-        *group.get_rent_collector(),
+        ctx.accounts.rent_collector.key(),
+        *ctx.accounts.group.get_rent_collector(),
         MultisigError::UnexpectedRentCollector
     );
 
     // Validate proposer
     require_keys_eq!(
         ctx.accounts.proposer.key(),
-        *proposal.get_proposer(),
+        *ctx.accounts.proposal.get_proposer(),
         MultisigError::InvalidProposer
     );
 
     // Validate proposal
     require!(
-        proposal.get_state() == ProposalState::Passed,
+        ctx.accounts.proposal.get_state() == ProposalState::Passed,
         MultisigError::ProposalNotPassed
     );
 
+    let now = Clock::get()?.unix_timestamp;
+
+    require_gt!(
+        now, 
+        ctx.accounts.proposal.get_valid_from_timestamp()?, 
+        MultisigError::ProposalStillTimelocked
+    );
+
     require_gte!(
-        proposal.get_proposal_index(),
-        group.get_proposal_index_after_stale(),
+        ctx.accounts.proposal.get_proposal_index(),
+        ctx.accounts.group.get_proposal_index_after_stale(),
         MultisigError::ProposalStale
     );
 
-    group.update_stale_proposal_index();
+    Ok(())
+}
 
+/// Removes an existing group member once a proposal to remove them has passed, 
+/// closes their GroupMember account and sends the rent to the rent_collector.
+/// it must be triggered by an approved proposal and can then be called by anyone
+pub fn remove_group_member_handler(
+    ctx: Context<RemoveGroupMemberInstructionAccounts>,
+) -> Result<()> {
+
+    // Perform preliminary checks
+    remove_group_member_checks(&ctx)?;
+    
+    let group = &mut ctx.accounts.group;
+    let proposal = &ctx.accounts.proposal;
 
     match proposal.get_config_change() {
         ConfigChange::RemoveGroupMember {
@@ -154,6 +171,49 @@ pub struct RemoveAssetMemberInstructionAccounts<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[inline(always)]// This function is only called once in the handler
+// Other checks are performed in the handler
+fn remove_asset_member_checks(
+    ctx: &Context<RemoveAssetMemberInstructionAccounts>,
+)->Result<()>{
+
+    // Validate rent collector
+    require_keys_eq!(
+        ctx.accounts.rent_collector.key(),
+        *ctx.accounts.group.get_rent_collector(),
+        MultisigError::UnexpectedRentCollector
+    );
+
+    // Validate proposer
+    require_keys_eq!(
+        ctx.accounts.proposer.key(),
+        *ctx.accounts.proposal.get_proposer(),
+        MultisigError::InvalidProposer
+    );
+
+    // Validate proposal
+    require!(
+        ctx.accounts.proposal.get_state() == ProposalState::Passed,
+        MultisigError::ProposalNotPassed
+    );
+
+    let now = Clock::get()?.unix_timestamp;
+
+    require_gt!(
+        now, 
+        ctx.accounts.proposal.get_valid_from_timestamp()?, 
+        MultisigError::ProposalStillTimelocked
+    );
+
+    require_gte!(
+        ctx.accounts.proposal.get_proposal_index(),
+        ctx.accounts.group.get_proposal_index_after_stale(),
+        MultisigError::ProposalStale
+    );
+
+    Ok(())
+}
+
 /// Removes an existing asset member once a proposal to remove them has passed,
 /// closes their AssetMember account and sends the rent to the rent_collector.
 /// It is not checked that they have a corresponding group account since one(AssetMember) could
@@ -161,42 +221,13 @@ pub struct RemoveAssetMemberInstructionAccounts<'info> {
 pub fn remove_asset_member_handler(
     ctx: Context<RemoveAssetMemberInstructionAccounts>,
 ) -> Result<()> {
-    let group = &mut ctx.accounts.group;
-    let rent_collector = &mut ctx.accounts.rent_collector;
+
+    // Perform preliminary checks
+    remove_asset_member_checks(&ctx)?;
+
     let asset = &mut ctx.accounts.asset;
     let proposal = &ctx.accounts.proposal;
     let asset_member = &ctx.accounts.asset_member_account;
-
-    // Validate rent collector
-    require_keys_eq!(
-        *rent_collector.key,
-        *group.get_rent_collector(),
-        MultisigError::UnexpectedRentCollector   
-    );
-
-    // Validate proposer
-    require_keys_eq!(
-        ctx.accounts.proposer.key(),
-        *proposal.get_proposer(),
-        MultisigError::InvalidProposer
-    );
-
-    // Validate proposal state
-    require!(
-        proposal.get_state() == ProposalState::Passed,
-        MultisigError::ProposalNotPassed
-    );
-
-    // Ensure proposal is not stale
-    require_gte!(
-        proposal.get_proposal_index(),
-        group.get_proposal_index_after_stale(),
-        MultisigError::ProposalStale
-    );
-
-    // Advance group's stale index
-    group.update_stale_proposal_index();
-
 
     match proposal.get_config_change() {
         ConfigChange::RemoveAssetMember {

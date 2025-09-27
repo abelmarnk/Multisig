@@ -78,7 +78,7 @@ pub struct AddAssetMintInstructionAccounts<'info> {
         seeds = [b"authority", group.key().as_ref(), mint.key().as_ref()],
         bump
     )]
-    /// CHECK: Just signs
+    /// CHECK: New asset authority
     pub asset_authority: UncheckedAccount<'info>,
 
     #[account(
@@ -133,7 +133,40 @@ pub struct AddAssetMintInstructionAccounts<'info> {
     pub asset_member_3: Box<Account<'info, AssetMember>>,
 
     pub token_program: Interface<'info, TokenInterface>,
+
     pub system_program: Program<'info, System>,
+}
+
+#[inline(always)] /// This function is only called once in the handler
+pub fn add_asset_mint_checks(
+    ctx: &Context<AddAssetMintInstructionAccounts>
+)-> Result<()>{
+    // Ensure adder has the add_asset permission
+    require!(ctx.accounts.adder.has_add_asset(), MultisigError::InsufficientPermissions);
+
+    // Token authority checks (mint/freeze)
+    require_keys_eq!(
+        ctx.accounts
+            .mint
+            .mint_authority
+            .ok_or(MultisigError::AuthorityNotProvided)?,
+        *ctx.accounts.asset_authority.key,
+        MultisigError::InvalidMintMintAuthority
+    );
+
+    // If the freeze authority is not set ignore
+    match ctx.accounts.mint.freeze_authority.as_ref() {
+        COption::Some(freeze_authority) => {
+            require_keys_eq!(
+                *freeze_authority,
+                *ctx.accounts.asset_authority.key,
+                MultisigError::InvalidMintMintAuthority
+            );
+        }
+        COption::None => {} // Ok
+    }
+
+    Ok(())
 }
 
 /// Registers a new token mint that is controlled by the multisig
@@ -141,6 +174,9 @@ pub fn add_asset_mint_handler(
     ctx: Context<AddAssetMintInstructionAccounts>,
     args: AddAssetMintInstructionArgs,
 ) -> Result<()> {
+
+    // Perform preliminary checks
+    add_asset_mint_checks(&ctx)?;
 
     let AddAssetMintInstructionArgs {
         member_key_1,
@@ -160,10 +196,6 @@ pub fn add_asset_mint_handler(
         minimum_vote_count,
     } = args;
 
-    let adder = &ctx.accounts.adder;
-
-    // Ensure adder has the add_asset permission
-    require!(adder.has_add_asset(), MultisigError::InsufficientPermissions);
 
     // Initialize the Asset account
     let mint_key = ctx.accounts.mint.key();
@@ -214,29 +246,6 @@ pub fn add_asset_mint_handler(
             bump,
             ctx.accounts.group.get_max_member_weight(),
         )?);
-    }
-
-    // Token authority checks (mint/freeze)
-
-    require_keys_eq!(
-        ctx.accounts
-            .mint
-            .mint_authority
-            .ok_or(MultisigError::AuthorityNotProvided)?,
-        *ctx.accounts.asset_authority.key,
-        MultisigError::InvalidMintMintAuthority
-    );
-
-    // If the freeze authority is not set ignore
-    match ctx.accounts.mint.freeze_authority.as_ref() {
-        COption::Some(freeze_authority) => {
-            require_keys_eq!(
-                *freeze_authority,
-                *ctx.accounts.asset_authority.key,
-                MultisigError::InvalidMintMintAuthority
-            );
-        }
-        COption::None => {} // Ok
     }
 
     Ok(())
@@ -294,7 +303,7 @@ pub struct AddAssetTokenInstructionAccounts<'info> {
         seeds = [b"authority", group.key().as_ref(), token.key().as_ref()],
         bump
     )]
-    /// CHECK: Just signs
+    /// CHECK: New Asset authority
     pub asset_authority: UncheckedAccount<'info>,
 
     #[account(
@@ -328,11 +337,57 @@ pub struct AddAssetTokenInstructionAccounts<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[inline(always)] /// This function is only called once in the handler
+pub fn add_asset_token_checks(
+    ctx: &Context<AddAssetTokenInstructionAccounts>
+)->Result<()>{
+
+    // Ensure adder has the add_asset permission
+    let adder = &ctx.accounts.adder;
+    require!(adder.has_add_asset(), MultisigError::InsufficientPermissions);
+
+    // Token account must be initialized
+    require!(
+        ctx.accounts.token.state == AccountState::Initialized,
+        MultisigError::InvalidAccountState
+    );
+
+    // Owner must equal asset_authority
+    require_keys_eq!(
+        ctx.accounts.token.owner,
+        *ctx.accounts.asset_authority.key,
+        MultisigError::InvalidTokenOwner
+    );
+
+    // Delegate must be None
+    require!(
+        ctx.accounts.token.delegate.is_none(),
+        MultisigError::InvalidTokenDelegate
+    );
+
+    // Close authority must be None or asset_authority
+    match ctx.accounts.token.close_authority {
+        COption::Some(close_auth) => {
+            require_keys_eq!(
+                close_auth,
+                *ctx.accounts.asset_authority.key,
+                MultisigError::InvalidCloseAuthority
+            );
+        }
+        COption::None => {} // Ok
+    }
+
+    Ok(())
+}
+
 // Registers a new token mint that is controlled by the multisig
 pub fn add_asset_token_handler(
     ctx: Context<AddAssetTokenInstructionAccounts>,
     args: AddAssetTokenInstructionArgs,
 ) -> Result<()> {
+
+    // Perform preliminary checks
+    add_asset_token_checks(&ctx)?;
 
     let AddAssetTokenInstructionArgs {
         member_key_1,
@@ -351,10 +406,6 @@ pub fn add_asset_token_handler(
         minimum_member_count,
         minimum_vote_count,
     } = args;
-
-    // Ensure adder has the add_asset permission
-    let adder = &ctx.accounts.adder;
-    require!(adder.has_add_asset(), MultisigError::InsufficientPermissions);
 
     // Initialize Asset
     let token_key = ctx.accounts.token.key();
@@ -405,37 +456,6 @@ pub fn add_asset_token_handler(
             bump,
             ctx.accounts.group.get_max_member_weight(),
         )?);
-    }
-
-    // Token account must be initialized
-    require!(
-        ctx.accounts.token.state == AccountState::Initialized,
-        MultisigError::InvalidAccountState
-    );
-
-    // Owner must equal asset_authority
-    require_keys_eq!(
-        ctx.accounts.token.owner,
-        *ctx.accounts.asset_authority.key,
-        MultisigError::InvalidTokenOwner
-    );
-
-    // Delegate must be None
-    require!(
-        ctx.accounts.token.delegate.is_none(),
-        MultisigError::InvalidTokenDelegate
-    );
-
-    // Close authority must be None or asset_authority
-    match ctx.accounts.token.close_authority {
-        COption::Some(close_auth) => {
-            require_keys_eq!(
-                close_auth,
-                *ctx.accounts.asset_authority.key,
-                MultisigError::InvalidCloseAuthority
-            );
-        }
-        COption::None => {} // Ok
     }
 
     Ok(())

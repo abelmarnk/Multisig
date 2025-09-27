@@ -8,14 +8,12 @@ use anchor_lang::{prelude::*, solana_program::system_program};
 #[derive(Accounts)]
 /// The accounts are bound together with the seeds and the rent collector check in the handler
 pub struct CleanUpAssetMemberInstructionAccounts<'info> {
-    /// The group that this asset member belongs to
     #[account(
         seeds = [b"group", group.get_group_seed().as_ref()],
         bump = group.get_account_bump()
     )]
     pub group: Account<'info, Group>,
 
-    /// The asset member account we want to close
     #[account(
         mut,
         seeds = [b"asset_member", group.key().as_ref(), member.key().as_ref()],
@@ -34,16 +32,15 @@ pub struct CleanUpAssetMemberInstructionAccounts<'info> {
 
     pub member:SystemAccount<'info>,
 
-    #[account(mut)]
     /// CHECK: Rent collector
+    #[account(mut)]
     pub rent_collector: UncheckedAccount<'info>,
 }
 
-/// Close an asset member account that has had it's group member account removed(by a proposal)
-/// the rent is sent to the rent collector
-pub fn clean_up_asset_member_handler(
-    ctx: Context<CleanUpAssetMemberInstructionAccounts>,
-) -> Result<()> {
+#[inline(always)] /// This function is only called once in the handler
+fn clean_up_asset_member_checks(
+    ctx: &Context<CleanUpAssetMemberInstructionAccounts>
+)->Result<()>{
     let group = &ctx.accounts.group;
     let group_member = &ctx.accounts.group_member;
     let rent_collector = &ctx.accounts.rent_collector;
@@ -65,4 +62,13 @@ pub fn clean_up_asset_member_handler(
     );
 
     Ok(())
+}
+
+/// Close an asset member account that has had it's group member account removed(by a proposal)
+/// the rent is sent to the rent collector
+/// This instruction can be called by anyone
+pub fn clean_up_asset_member_handler(
+    ctx: Context<CleanUpAssetMemberInstructionAccounts>,
+) -> Result<()> {
+    clean_up_asset_member_checks(&ctx)
 }

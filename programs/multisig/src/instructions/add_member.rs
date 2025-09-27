@@ -50,9 +50,43 @@ pub struct AddGroupMemberInstructionAccounts<'info> {
 
     pub system_program: Program<'info, System>,
 }
+#[inline(always)] /// This function is only called once in the handler
+fn add_group_member_checks(
+    ctx: &Context<AddGroupMemberInstructionAccounts>
+)->Result<()>{
+     // Validate proposer
+    require_keys_eq!(
+        ctx.accounts.proposer.key(),
+        *ctx.accounts.proposal.get_proposer(),
+        MultisigError::InvalidProposer
+    );
+
+    // Validate proposal
+    
+    let now = Clock::get()?.unix_timestamp;
+
+    require_gt!(now, 
+        ctx.accounts.proposal.get_valid_from_timestamp()?, 
+        MultisigError::ProposalStillTimelocked
+    );
+
+    require!(
+        ctx.accounts.proposal.get_state() == ProposalState::Passed,
+        MultisigError::ProposalNotPassed
+    );
+
+    require_gte!(
+        ctx.accounts.proposal.get_proposal_index(),
+        ctx.accounts.group.get_proposal_index_after_stale(),
+        MultisigError::ProposalStale
+    );
+
+    Ok(())
+}
 
 /// Adds a new member to an existing group, storing their key and weight and permissions,
 /// as well as the group key for indexing.
+/// it must be triggered by an approved proposal and can then be called by anyone
 pub fn add_group_member_handler(
     ctx: Context<AddGroupMemberInstructionAccounts>,
     args: AddGroupMemberInstructionArgs, // We pass in the argument because of the seed checks above
@@ -60,32 +94,18 @@ pub fn add_group_member_handler(
 ) -> Result<()> {
     let AddGroupMemberInstructionArgs { new_member } = args;
 
+    // Perform preliminary checks
+    add_group_member_checks(&ctx)?;
+
     let group = &mut ctx.accounts.group;
     let proposal = &ctx.accounts.proposal;
-
-    // Validate proposer
-    require_keys_eq!(
-        ctx.accounts.proposer.key(),
-        *proposal.get_proposer(),
-        MultisigError::InvalidProposer
-    );
-
-    // Validate proposal
-    require!(
-        proposal.get_state() == ProposalState::Passed,
-        MultisigError::ProposalNotPassed
-    );
-
-    require_gte!(
-        proposal.get_proposal_index(),
-        group.get_proposal_index_after_stale(),
-        MultisigError::ProposalStale
-    );
-
+   
     group.update_stale_proposal_index();
+
 
     // Add member
     match proposal.get_config_change() {
+        // Add in the new group member        
         ConfigChange::AddGroupMember {
             member,
             weight,
@@ -96,7 +116,7 @@ pub fn add_group_member_handler(
             ctx.accounts.new_group_member.set_inner(GroupMember::new(
                 new_member,
                 group.key(),
-                Permissions::new(*permissions)?,
+                *permissions,
                 *weight,
                 ctx.bumps.new_group_member,
                 group.get_max_member_weight(),
@@ -165,40 +185,63 @@ pub struct AddAssetMemberInstructionAccounts<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[inline(always)] /// This function is only called once in the handler
+fn add_asset_member_checks(
+    ctx: &Context<AddAssetMemberInstructionAccounts>,
+)->Result<()>{
+    // Validate proposer
+    require_keys_eq!(
+        ctx.accounts.proposer.key(),
+        *ctx.accounts.proposal.get_proposer(),
+        MultisigError::InvalidProposer
+    );
+
+    // Validate proposal
+    
+    let now = Clock::get()?.unix_timestamp;
+
+    require_gt!(now, 
+        ctx.accounts.proposal.get_valid_from_timestamp()?, 
+        MultisigError::ProposalStillTimelocked
+    );
+
+    require!(
+        ctx.accounts.proposal.get_state() == ProposalState::Passed,
+        MultisigError::ProposalNotPassed
+    );
+
+    require_gte!(
+        ctx.accounts.proposal.get_proposal_index(),
+        ctx.accounts.group.get_proposal_index_after_stale(),
+        MultisigError::ProposalStale
+    );
+
+    Ok(())
+}
 /// Adds a pre-existing group member to govern an existing asset, storing their key and weight
 ///  and permissions, as well as the group key and asset key for indexing.
+/// it must be triggered by an approved proposal and can then be called by anyone
 pub fn add_asset_member_handler(
     ctx: Context<AddAssetMemberInstructionAccounts>,
-    args: AddAssetMemberInstructionArgs,
+    args: AddAssetMemberInstructionArgs,// We pass in the argument because of the seed checks above
+                                        // A helper function could be added later to extract it from the proposal
+
 ) -> Result<()> {
+
+    // Perform preliminary checks
+    add_asset_member_checks(&ctx)?;
+
     let AddAssetMemberInstructionArgs { new_member } = args;
 
     let group = &mut ctx.accounts.group;
     let asset = &mut ctx.accounts.asset;
     let proposal = &ctx.accounts.proposal;
 
-    // Validate proposer
-    require_keys_eq!(
-        ctx.accounts.proposer.key(),
-        *proposal.get_proposer(),
-        MultisigError::InvalidProposer
-    );
-
-    // Validate proposal
-    require!(
-        proposal.get_state() == ProposalState::Passed,
-        MultisigError::ProposalNotPassed
-    );
-    require_gte!(
-        proposal.get_proposal_index(),
-        group.get_proposal_index_after_stale(),
-        MultisigError::ProposalStale
-    );
-
     group.update_stale_proposal_index();
 
 
     match proposal.get_config_change() {
+        // Add in the new asset member
         ConfigChange::AddAssetMember {
             weight,
             member,
@@ -215,7 +258,7 @@ pub fn add_asset_member_handler(
                 new_member,
                 group.key(),
                 *asset.get_asset_address(),
-                Permissions::new(*permissions)?,
+                *permissions,
                 *weight,
                 ctx.bumps.new_asset_member,
                 group.get_max_member_weight(),

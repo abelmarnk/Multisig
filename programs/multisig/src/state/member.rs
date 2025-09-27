@@ -36,6 +36,8 @@ impl AssetMember {
         account_bump: u8,
         max_weight: u32,
     ) -> Result<Self> {
+        permissions.validate()?;
+
         Ok(Self {
             user,
             group,
@@ -126,6 +128,8 @@ impl GroupMember {
         account_bump: u8,
         max_weight: u32,
     ) -> Result<Self> {
+        permissions.validate()?;
+
         Ok(Self {
             user,
             group,
@@ -206,15 +210,10 @@ pub struct Permissions {
     permissions: u8,
 }
 
+
+
 impl Permissions {
     const VALID_STATE_MASK: u8 = 0b11111100;
-
-    #[inline(always)]
-    pub fn new(permissions: u8) -> Result<Permissions> {
-        let permissions = Permissions { permissions };
-        permissions.validate()?;
-        Ok(permissions)
-    }
 
     /// Check if "Propose" permission is set
     #[inline(always)]

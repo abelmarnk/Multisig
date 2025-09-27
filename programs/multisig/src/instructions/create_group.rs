@@ -22,9 +22,7 @@ pub struct CreateGroupInstructionArgs {
     pub minimum_vote_count: u32,
     pub max_member_weight: u32,
     pub member_weights: [u32; 5],
-    pub member_permissions: [u8; 5],
-    pub default_timelock_offset: u32,
-    pub expiry_offset: u32,
+    pub member_permissions: [Permissions; 5],
 }
 
 #[derive(Accounts)]
@@ -99,6 +97,7 @@ pub struct CreateGroupInstructionAccounts<'info> {
 }
 /// Initializes a new governance group account with its initial configuration, seeds, 
 /// and proposal index tracking as well as other state for maintaining the multisig.
+/// This instruction can be called by anyone
 pub fn create_group_handler(
     ctx: Context<CreateGroupInstructionAccounts>,
     args: CreateGroupInstructionArgs,
@@ -117,9 +116,7 @@ pub fn create_group_handler(
         minimum_vote_count,
         max_member_weight,
         member_weights,
-        member_permissions,
-        default_timelock_offset,
-        expiry_offset,
+        member_permissions
     } = args;
 
     let group = &mut ctx.accounts.group;
@@ -138,8 +135,6 @@ pub fn create_group_handler(
         minimum_vote_count,
         max_member_weight,
         5, // initial member count
-        default_timelock_offset,
-        expiry_offset,
         ctx.bumps.group,
     )?;
     group.set_inner(new_group);
@@ -180,7 +175,7 @@ pub fn create_group_handler(
         account.set_inner(GroupMember::new(
             member.key(),
             group.key(),            
-            Permissions::new(permissions)?,
+            permissions,
             weight,
             bump,
             max_member_weight,

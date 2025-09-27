@@ -1,3 +1,4 @@
+use crate::ProposalTarget;
 use crate::state::error::*;
 use crate::state::{
     asset::Asset,
@@ -26,37 +27,55 @@ pub struct ChangeGroupConfigInstructionAccounts<'info> {
     #[account(mut)]
     pub proposer: SystemAccount<'info>,
 }
-/// Updates group-wide configuration (e.g, timelock, thresholds, expiry), 
-/// it must be triggered by an approved proposal.
-pub fn change_group_config_handler(
-    ctx: Context<ChangeGroupConfigInstructionAccounts>,
-) -> Result<()> {
-    let group = &mut ctx.accounts.group;
-    let proposal = &ctx.accounts.proposal;
-
+#[inline(always)] /// This function is only called once in the handler
+fn change_group_config_checks(
+    ctx: &Context<ChangeGroupConfigInstructionAccounts>,
+)->Result<()>{
     // Validate proposer
     require_keys_eq!(
         ctx.accounts.proposer.key(),
-        *proposal.get_proposer(),
+        *ctx.accounts.proposal.get_proposer(),
         MultisigError::InvalidProposer
     );
 
     // Validate proposal
+    
+    let now = Clock::get()?.unix_timestamp;
+
+    require_gt!(now, 
+        ctx.accounts.proposal.get_valid_from_timestamp()?, 
+        MultisigError::ProposalStillTimelocked
+    );
+
     require!(
-        proposal.get_state() == ProposalState::Passed,
+        ctx.accounts.proposal.get_state() == ProposalState::Passed,
         MultisigError::ProposalNotPassed
     );
 
     require_gte!(
-        proposal.get_proposal_index(),
-        group.get_proposal_index_after_stale(),
+        ctx.accounts.proposal.get_proposal_index(),
+        ctx.accounts.group.get_proposal_index_after_stale(),
         MultisigError::ProposalStale
     );
+
+    Ok(())
+}
+
+/// Updates group-wide configuration (e.g, timelock, thresholds, expiry), 
+/// it must be triggered by an approved proposal and can then be called by anyone
+pub fn change_group_config_handler(
+    ctx: Context<ChangeGroupConfigInstructionAccounts>,
+) -> Result<()> {
+    change_group_config_checks(&ctx)?;
+    
+    let group = &mut ctx.accounts.group;
+    let proposal = &ctx.accounts.proposal;
 
     group.update_stale_proposal_index();
 
 
     match proposal.get_config_change() {
+        // Change the group configuration
         ConfigChange::ChangeGroupConfig { config_type } => match config_type {
             ConfigType::AddMember(threshold) => group.set_add_threshold(*threshold)?,
             ConfigType::NotAddMember(threshold) => group.set_not_add_threshold(*threshold)?,
@@ -104,44 +123,69 @@ pub struct ChangeAssetConfigInstructionAccounts<'info> {
     pub proposer: SystemAccount<'info>,
 }
 
-/// Updates asset-wide configuration (e.g, timelock, thresholds, expiry), 
-/// it must be triggered by an approved proposal.
-pub fn change_asset_config_handler(
-    ctx: Context<ChangeAssetConfigInstructionAccounts>,
-) -> Result<()> {
-    let group = &mut ctx.accounts.group;
-    let asset = &mut ctx.accounts.asset;
-    let proposal = &ctx.accounts.proposal;
+#[inline(always)] /// This function is only called once in the handler
+fn change_asset_config_checks(
+    ctx: &Context<ChangeAssetConfigInstructionAccounts>    
+)->Result<()>{
 
     // Validate proposer
     require_keys_eq!(
         ctx.accounts.proposer.key(),
-        *proposal.get_proposer(),
+        *ctx.accounts.proposal.get_proposer(),
         MultisigError::InvalidProposer
     );
 
     // Validate proposal
+    
+    let now = Clock::get()?.unix_timestamp;
+
+    require_gt!(now, 
+        ctx.accounts.proposal.get_valid_from_timestamp()?, 
+        MultisigError::ProposalStillTimelocked
+    );
+
     require!(
-        proposal.get_state() == ProposalState::Passed,
+        ctx.accounts.proposal.get_state() == ProposalState::Passed,
         MultisigError::ProposalNotPassed
     );
 
     require_gte!(
-        proposal.get_proposal_index(),
-        group.get_proposal_index_after_stale(),
+        ctx.accounts.proposal.get_proposal_index(),
+        ctx.accounts.group.get_proposal_index_after_stale(),
         MultisigError::ProposalStale
     );
 
-    group.update_stale_proposal_index();
+    Ok(())
+}
 
+/// Updates asset-wide configuration (e.g, timelock, thresholds, expiry), 
+/// it must be triggered by an approved proposal and can then be called by anyone
+pub fn change_asset_config_handler(
+    ctx: Context<ChangeAssetConfigInstructionAccounts>,
+) -> Result<()> {
+
+    change_asset_config_checks(&ctx)?;
+
+    let group = &mut ctx.accounts.group;
+    let asset = &mut ctx.accounts.asset;
+    let proposal = &ctx.accounts.proposal;
+    
+    group.update_stale_proposal_index();
+    
 
     match proposal.get_config_change() {
+        // Change the asset configuration
         ConfigChange::ChangeAssetConfig {
-            asset: asset_key,
             config_type,
         } => {
+
+            let asset_key = match proposal.get_target() {
+                &ProposalTarget::Asset(asset_key) => asset_key,
+                ProposalTarget::Group => return Err(MultisigError::InvalidConfigChange.into()),
+            };
+
             require!(
-                *asset_key == *asset.get_asset_address(),
+                asset_key == *asset.get_asset_address(),
                 MultisigError::InvalidAsset
             );
 
