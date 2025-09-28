@@ -62,7 +62,7 @@ pub mod multisig {
 
     /// Initializes a new governance group account with its initial configuration, seeds, 
     /// and proposal index tracking as well as other state for maintaining the multisig.
-    pub fn create_new_group(
+    pub fn create_group(
         ctx: Context<CreateGroupInstructionAccounts>,
         args: CreateGroupInstructionArgs,
     ) -> Result<()> {

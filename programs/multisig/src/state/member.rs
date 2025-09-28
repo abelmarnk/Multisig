@@ -36,7 +36,7 @@ impl AssetMember {
         account_bump: u8,
         max_weight: u32,
     ) -> Result<Self> {
-        permissions.validate()?;
+        permissions.is_valid()?;
 
         Ok(Self {
             user,
@@ -128,7 +128,7 @@ impl GroupMember {
         account_bump: u8,
         max_weight: u32,
     ) -> Result<Self> {
-        permissions.validate()?;
+        permissions.is_valid()?;
 
         Ok(Self {
             user,
@@ -210,6 +210,37 @@ pub struct Permissions {
     permissions: u8,
 }
 
+impl TryFrom<u8> for Permissions {
+    type Error = Error;
+    fn try_from(value: u8) -> Result<Self> {
+        let permissions = Permissions{permissions:value};
+
+        permissions.is_valid()?;
+
+        Ok(permissions)    
+    }
+}
+
+#[cfg(feature = "test-helpers")]
+impl Permissions {
+    pub fn from_unchecked(value:u8)->Self{
+        Permissions{permissions:value}
+    }
+
+    pub fn from_flags(propose:bool, add_asset:bool) -> Permissions{
+        let mut flag = 0b00000000u8;
+
+        if propose{
+            flag |= 0b00000001u8;
+        }
+
+        if add_asset{
+            flag |= 0b00000010u8;
+        }
+        
+        Permissions { permissions: flag }
+    }
+}
 
 
 impl Permissions {
@@ -248,7 +279,7 @@ impl Permissions {
     }
 
     #[inline]
-    pub fn validate(&self) -> Result<()> {
+    pub fn is_valid(&self) -> Result<()> {
         if (self.permissions & Self::VALID_STATE_MASK).ne(&0) {
             return Err(MultisigError::InvalidPermissions.into());
         }

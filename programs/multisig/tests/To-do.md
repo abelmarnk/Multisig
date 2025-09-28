@@ -1,1 +1,1 @@
-- Add lite-svm tests
+- Add other lite-svm tests

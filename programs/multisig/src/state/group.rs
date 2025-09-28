@@ -67,8 +67,8 @@ impl Group {
         not_change_config_threshold.is_valid()?;
 
         require_gt!(member_count, 0, MultisigError::InvalidMemberCount);
-        require_gt!(member_count, minimum_vote_count, MultisigError::InvalidThreshold);
-        require_gte!(member_count, minimum_member_count, MultisigError::InvalidThreshold);
+        require_gt!(member_count, minimum_vote_count, MultisigError::InvalidMemberCount);
+        require_gte!(member_count, minimum_member_count, MultisigError::InvalidMemberCount);
 
         let group = Self {
             group_seed,

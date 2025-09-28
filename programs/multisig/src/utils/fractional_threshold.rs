@@ -9,6 +9,16 @@ pub struct FractionalThreshold {
     denominator: u32,
 }
 
+#[cfg(feature = "test-helpers")]
+impl FractionalThreshold{
+    pub fn from_unchecked(numerator: u32, denominator: u32) -> FractionalThreshold{
+        FractionalThreshold {
+            numerator,
+            denominator,
+        }
+    }
+}
+
 impl FractionalThreshold {
     pub fn is_valid(&self) -> Result<()> {
         if self.denominator.eq(&0) || self.numerator.ge(&self.denominator) || self.numerator.eq(&0){
