@@ -1,6 +1,0 @@
-- Consider adding a config change for max weight count
-- Add transaction support later(in place of just instruction support) and also add the ability to extend the transaction
-- Add LiteSVM tests
-- Expand readme.md
-- Consider adding new thresholds and minimums to the remove member config change, so all could be changed at once, as it stands now, the other two may cause the first to fail unless they are changed first, the in that case for the vote to pass the voting theshold would have to be as high as all three at once
-- Add mini test modules for testing the get_size function among other things
