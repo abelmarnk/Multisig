@@ -1,4 +1,5 @@
 # Solana Multisig Program
+> ARCHIVE NOTE (2026-01-06): This program is untested and unaudited. It is provided for archival and reference purposes only and should NOT be used to manage real assets, hold funds, or be deployed in production. Use of this code carries risk; do not run it with live funds or rely on it for security-critical operations. No warranties are provided.
 
 This project is a **Solana anchor program** that implements a flexible, asset-aware multisig governance system, it is still in the process of being built.
 
