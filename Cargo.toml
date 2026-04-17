@@ -5,6 +5,10 @@ members = [
 ]
 resolver = "2"
 
+[patch.crates-io]
+multisig = { path = "programs/multisig" }
+multisig-sdk = { path = "sdk" }
+
 [profile.release]
 overflow-checks = true
 lto = "fat"

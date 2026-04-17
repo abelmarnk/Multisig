@@ -3,6 +3,8 @@ name = "multisig"
 version = "0.1.0"
 description = "Created with Anchor"
 edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/abelmarnk/Multisig"
 
 [lib]
 crate-type = ["cdylib", "lib"]
@@ -30,4 +32,4 @@ rand = "0.9.2"
 solana-sdk = "2.2.1"
 spl-associated-token-account = "6.0.0"
 spl-token = "7.0"
-multisig-sdk = { path = "../../sdk" }
+multisig-sdk = "0.1.0"
