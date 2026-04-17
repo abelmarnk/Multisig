@@ -1,29 +1,33 @@
 use std::ops::AddAssign;
 
 use crate::{
-    Permissions, state::{Asset, error::MultisigError, group::Group}, utils::FractionalThreshold
+    state::{error::MultisigError, group::Group, Asset},
+    utils::FractionalThreshold,
+    Permissions,
 };
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::{prelude::*, solana_program::hash::HASH_BYTES as HASH_BYTES_LENGTH};
 
 #[account]
 pub struct NormalProposal {
-    proposer: Pubkey,
-    proposal_seed: Pubkey,
-    group: Pubkey,
-    assets: Vec<ProposalAsset>,
-    passed_assets_count: u8,
-    propose_timestamp: i64,
-    proposal_deadline_timestamp: i64,
-    proposal_passed_timestamp: Option<i64>,
-    timelock_offset: u32,
-    state: ProposalState,
-    account_bump: u8,
-    proposal_index: u64,
-    instruction_hash: [u8; HASH_BYTES_LENGTH],
+    pub assets: Vec<ProposalAsset>,
+    /// Hashes of each instruction in the proposal transaction, in order.
+    pub instruction_hashes: Vec<[u8; HASH_BYTES_LENGTH]>,
+    pub propose_timestamp: i64,
+    pub proposal_deadline_timestamp: i64,
+    pub proposal_passed_timestamp: Option<i64>,
+    pub proposal_index: u64,
+    pub timelock_offset: u32,
+    pub group: Pubkey,
+    pub proposer: Pubkey,
+    pub proposal_seed: Pubkey,
+    pub passed_assets_count: u8,
+    pub state: ProposalState,
+    pub account_bump: u8,
 }
 
 impl NormalProposal {
+    #[allow(clippy::too_many_arguments)]
     #[inline(always)]
     pub fn new(
         proposer: Pubkey,
@@ -33,7 +37,7 @@ impl NormalProposal {
         account_bump: u8,
         proposal_index: u64,
         proposal_deadline_timestamp: i64,
-        instruction_hash: [u8; HASH_BYTES_LENGTH],
+        instruction_hashes: Vec<[u8; HASH_BYTES_LENGTH]>,
         timelock_offset: u32,
     ) -> Result<Self> {
         let clock = Clock::get()?;
@@ -52,28 +56,8 @@ impl NormalProposal {
             account_bump,
             proposal_deadline_timestamp,
             proposal_index,
-            instruction_hash,
+            instruction_hashes,
         })
-    }
-
-    #[inline(always)]
-    pub fn get_proposer(&self) -> &Pubkey {
-        &self.proposer
-    }
-
-    #[inline(always)]
-    pub fn get_proposal_seed(&self) -> &Pubkey {
-        &self.proposal_seed
-    }
-
-    #[inline(always)]
-    pub fn get_group(&self) -> &Pubkey {
-        &self.group
-    }
-
-    #[inline(always)]
-    pub fn get_assets(&self) -> &Vec<ProposalAsset> {
-        &self.assets
     }
 
     #[inline(always)]
@@ -82,14 +66,12 @@ impl NormalProposal {
     }
 
     #[inline(always)]
-    pub fn get_passed_assets_count(&self) -> u8 {
-        self.passed_assets_count
-    }
-
-    #[inline(always)]
-    pub fn increment_passed_assets_count(&mut self) {
-        // The maximum no of assets is 10
-        self.passed_assets_count = self.passed_assets_count + 1;
+    pub fn increment_passed_assets_count(&mut self) -> Result<()> {
+        self.passed_assets_count = self
+            .passed_assets_count
+            .checked_add(1)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+        Ok(())
     }
 
     #[inline(always)]
@@ -98,54 +80,17 @@ impl NormalProposal {
     }
 
     #[inline(always)]
-    pub fn get_proposal_passed_timestamp(&self) -> Option<i64> {
-        self.proposal_passed_timestamp
-    }
-
-    #[inline(always)]
     pub fn set_proposal_passed_timestamp(&mut self, timestamp: i64) {
         self.proposal_passed_timestamp = Some(timestamp);
     }
 
     #[inline(always)]
-    pub fn get_propose_timestamp(&self) -> i64 {
-        self.propose_timestamp
-    }
-
-    #[inline(always)]
-    pub fn get_timelock_offset(&self) -> u32 {
-        self.timelock_offset
-    }
-
-    #[inline(always)]
-    pub fn get_proposal_deadline_timestamp(&self) -> i64 {
-        self.proposal_deadline_timestamp
-    }
-
-    #[inline(always)]
-    pub fn get_account_bump(&self) -> u8 {
-        self.account_bump
-    }
-
-    #[inline(always)]
-    pub fn get_proposal_index(&self) -> u64 {
-        self.proposal_index
-    }
-
-    #[inline(always)]
     pub fn get_valid_from_timestamp(&self) -> Result<i64> {
-        Ok(self.proposal_passed_timestamp.ok_or(MultisigError::ProposalNotPassed)?.checked_add(
-        i64::from(self.timelock_offset)).ok_or(ProgramError::ArithmeticOverflow)?)
-    }
-
-    #[inline(always)]
-    pub fn get_instruction_hash(&self) -> &[u8; HASH_BYTES_LENGTH] {
-        &self.instruction_hash
-    }
-
-    #[inline(always)]
-    pub fn get_state(&self) -> ProposalState {
-        self.state
+        Ok(self
+            .proposal_passed_timestamp
+            .ok_or(MultisigError::ProposalNotPassed)?
+            .checked_add(i64::from(self.timelock_offset))
+            .ok_or(ProgramError::ArithmeticOverflow)?)
     }
 
     #[inline(always)]
@@ -155,42 +100,53 @@ impl NormalProposal {
                 self.state = new_state;
                 Ok(())
             }
-            ProposalState::Passed | ProposalState::Failed | ProposalState::Expired => {
-                Err(error!(MultisigError::InvalidStateTransition))
-            }
+            ProposalState::Passed
+            | ProposalState::Failed
+            | ProposalState::Expired
+            | ProposalState::Executed => Err(error!(MultisigError::InvalidStateTransition)),
         }
     }
 
     #[inline(always)]
-    pub fn get_size(asset_count: usize) -> usize {
+    pub fn mark_executed(&mut self) -> Result<()> {
+        match self.state {
+            ProposalState::Passed => {
+                self.state = ProposalState::Executed;
+                Ok(())
+            }
+            _ => Err(error!(MultisigError::InvalidStateTransition)),
+        }
+    }
 
-        // proposer: Pubkey
-        size_of::<Pubkey>()
-        // proposal_seed: Pubkey
-        + size_of::<Pubkey>()
-        // group: Pubkey
-        + size_of::<Pubkey>()
-        // assets: Vec<ProposalAsset> -> 4-byte prefix + elements
-        + 4 + size_of::<ProposalAsset>() * asset_count
-        // passed_assets_count: u8
-        + size_of::<u8>()
+    #[inline(always)]
+    pub fn get_size(asset_count: usize, instruction_hash_count: usize) -> usize {
+        // assets: Vec<ProposalAsset>
+        4 + size_of::<ProposalAsset>() * asset_count
+        // instruction_hashes: Vec<[u8; HASH_BYTES_LENGTH]>
+        + 4 + HASH_BYTES_LENGTH * instruction_hash_count
         // propose_timestamp: i64
         + size_of::<i64>()
         // proposal_deadline_timestamp: i64
         + size_of::<i64>()
         // proposal_passed_timestamp: Option<i64>
         + size_of::<Option<i64>>()
+        // proposal_index: u64
+        + size_of::<u64>()
         // timelock_offset: u32
         + size_of::<u32>()
+        // group: Pubkey
+        + size_of::<Pubkey>()
+        // proposer: Pubkey
+        + size_of::<Pubkey>()
+        // proposal_seed: Pubkey
+        + size_of::<Pubkey>()
+        // passed_assets_count: u8
+        + size_of::<u8>()
         // state: ProposalState
         + size_of::<ProposalState>()
         // account_bump: u8
         + size_of::<u8>()
-        // proposal_index: u64
-        + size_of::<u64>()
-        // instruction_hash: [u8; HASH_BYTES_LENGTH]
-        + HASH_BYTES_LENGTH
-}
+    }
 
     /// Check if an asset has enough support to be marked as passed
     /// and pass the proposal if possible
@@ -202,25 +158,22 @@ impl NormalProposal {
         let asset = &mut self.assets[index];
 
         // We can only change the state of an asset if it is yet to reach any threshold
-        if asset.get_threshold_state() != ProposalAssetThresholdState::NoThresholdReached {
+        if asset.threshold_state != ProposalAssetThresholdState::NoThresholdReached {
             return Ok(false);
         }
 
         // Overflow not possible, each weight <= u32::max() and members <= u32::max()
-        let total_votes_weight = asset.get_use_vote_weight() + asset.get_not_use_vote_weight();
+        let total_votes_weight = asset.use_vote_weight + asset.not_use_vote_weight;
 
         // If the vote count is yet to meet the quorom then the vote cannot pass
-        if asset
-            .get_vote_count()
-            .lt(&governed_asset.get_minimum_vote_count())
-        {
+        if asset.vote_count.lt(&governed_asset.minimum_vote_count) {
             return Ok(false);
         }
 
         // Has the passing threshold been reached?
         let passes_threshold = governed_asset
-            .get_use_threshold()
-            .less_than_or_equal(asset.get_use_vote_weight(), total_votes_weight)?;
+            .use_threshold
+            .less_than_or_equal(asset.use_vote_weight, total_votes_weight)?;
 
         if !passes_threshold {
             return Ok(false);
@@ -229,11 +182,12 @@ impl NormalProposal {
         // We can use this asset
         asset.set_threshold_state(ProposalAssetThresholdState::UseThresholdReached)?;
 
-        self.increment_passed_assets_count();
+        self.increment_passed_assets_count()?;
 
         // The proposal has been passed since the owners of the asset have voted for use
         if self.has_all_assets_passed() {
             self.state = ProposalState::Passed;
+            self.set_proposal_passed_timestamp(Clock::get()?.unix_timestamp);
         }
 
         // This asset just now passed
@@ -250,25 +204,22 @@ impl NormalProposal {
         let asset = &mut self.assets[index];
 
         // We can only change the state of an asset if it is yet to reach any threshold
-        if asset.get_threshold_state() != ProposalAssetThresholdState::NoThresholdReached {
+        if asset.threshold_state != ProposalAssetThresholdState::NoThresholdReached {
             return Ok(false);
         }
 
-        // Overflow not possible, each weight <= u32::max() and members <= u32::max()
-        let total_votes_weight = asset.get_use_vote_weight() + asset.get_not_use_vote_weight();
+        // Overflow not possible: u32::MAX * u32::MAX < u64::MAX
+        let total_votes_weight = asset.use_vote_weight + asset.not_use_vote_weight;
 
         // If the vote count is yet to meet the quorom then the vote cannot pass
-        if asset
-            .get_vote_count()
-            .lt(&governed_asset.get_minimum_vote_count())
-        {
+        if asset.vote_count.lt(&governed_asset.minimum_vote_count) {
             return Ok(false);
         }
 
         // Has the failing threshold been reached?
         let fails_threshold = governed_asset
-            .get_not_use_threshold()
-            .less_than_or_equal(asset.get_not_use_vote_weight(), total_votes_weight)?;
+            .not_use_threshold
+            .less_than_or_equal(asset.not_use_vote_weight, total_votes_weight)?;
 
         if !fails_threshold {
             return Ok(false);
@@ -288,24 +239,29 @@ impl NormalProposal {
 #[account]
 #[derive(InitSpace)]
 pub struct ConfigProposal {
-    group: Pubkey,
-    proposer: Pubkey,
-    proposal_seed: Pubkey,
-    target: ProposalTarget,
-    propose_timestamp: i64,
-    timelock_offset: u32,
-    proposal_index: u64,
-    proposal_deadline_timestamp: i64,
-    proposal_passed_timestamp: Option<i64>,
-    state: ProposalState,
-    vote_count: u32,
-    for_weight: u64,
-    against_weight: u64,
-    config_change: ConfigChange,
-    account_bump: u8,
+    pub propose_timestamp: i64,
+    pub proposal_deadline_timestamp: i64,
+    pub proposal_passed_timestamp: Option<i64>,
+    pub proposal_index: u64,
+    pub for_weight: u64,
+    pub against_weight: u64,
+
+    pub group: Pubkey,
+    pub proposer: Pubkey,
+    pub proposal_seed: Pubkey,
+
+    pub timelock_offset: u32,
+    pub vote_count: u32,
+
+    pub target: ProposalTarget,
+    pub config_change: ConfigChange,
+
+    pub state: ProposalState,
+    pub account_bump: u8,
 }
 
 impl ConfigProposal {
+    #[allow(clippy::too_many_arguments)]
     #[inline(always)]
     pub fn new(
         proposer: Pubkey,
@@ -341,89 +297,17 @@ impl ConfigProposal {
     }
 
     #[inline(always)]
-    pub fn get_group(&self) -> &Pubkey {
-        &self.group
-    }
-
-    #[inline(always)]
-    pub fn get_proposer(&self) -> &Pubkey {
-        &self.proposer
-    }
-
-    #[inline(always)]
-    pub fn get_proposal_seed(&self) -> &Pubkey {
-        &self.proposal_seed
-    }
-
-    #[inline(always)]
-    pub fn get_target(&self) -> &ProposalTarget {
-        &self.target
-    }
-
-    #[inline(always)]
-    pub fn get_propose_timestamp(&self) -> i64 {
-        self.propose_timestamp
-    }
-
-    #[inline(always)]
-    pub fn get_timelock_offset(&self) -> u32 {
-        self.timelock_offset
-    }
-
-    #[inline(always)]
-    pub fn get_proposal_index(&self) -> u64 {
-        self.proposal_index
-    }
-
-    #[inline(always)]
-    pub fn get_state(&self) -> ProposalState {
-        self.state
-    }
-
-    #[inline(always)]
-    pub fn get_vote_count(&self) -> u32 {
-        self.vote_count
-    }
-
-    #[inline(always)]
-    pub fn get_for_weight(&self) -> u64 {
-        self.for_weight
-    }
-
-    #[inline(always)]
-    pub fn get_against_weight(&self) -> u64 {
-        self.against_weight
-    }
-
-    #[inline(always)]
-    pub fn get_config_change(&self) -> &ConfigChange {
-        &self.config_change
-    }
-
-    #[inline(always)]
-    pub fn get_account_bump(&self) -> u8 {
-        self.account_bump
-    }
-
-    #[inline(always)]
-    pub fn get_proposal_passed_timestamp(&self) -> Option<i64> {
-        self.proposal_passed_timestamp
-    }
-
-    #[inline(always)]
     pub fn set_proposal_passed_timestamp(&mut self, timestamp: i64) {
         self.proposal_passed_timestamp = Some(timestamp);
     }
 
     #[inline(always)]
     pub fn get_valid_from_timestamp(&self) -> Result<i64> {
-        Ok(self.proposal_passed_timestamp.ok_or(MultisigError::ProposalNotPassed)?.checked_add(
-        i64::from(self.timelock_offset)).ok_or(ProgramError::ArithmeticOverflow)?)
-    }
-
-    #[inline(always)]
-    pub fn get_proposal_deadline_timestamp(&self) -> i64 {
-        self.proposal_deadline_timestamp
+        Ok(self
+            .proposal_passed_timestamp
+            .ok_or(MultisigError::ProposalNotPassed)?
+            .checked_add(i64::from(self.timelock_offset))
+            .ok_or(ProgramError::ArithmeticOverflow)?)
     }
 
     #[inline(always)]
@@ -447,17 +331,25 @@ impl ConfigProposal {
     }
 
     #[inline(always)]
+    pub fn increment_vote_count(&mut self) -> Result<()> {
+        self.vote_count = self
+            .vote_count
+            .checked_add(1)
+            .ok_or(MultisigError::TooManyVotes)?;
+        Ok(())
+    }
+
+    #[inline(always)]
     pub fn set_state(&mut self, new_state: ProposalState) -> Result<()> {
         match self.state {
             ProposalState::Open => {
-                // Allow only transitions from Open into a finalized state
                 self.state = new_state;
                 Ok(())
             }
-            ProposalState::Passed | ProposalState::Failed | ProposalState::Expired => {
-                // Once finalized, state cannot change
-                Err(MultisigError::InvalidStateTransition.into())
-            }
+            ProposalState::Passed
+            | ProposalState::Failed
+            | ProposalState::Expired
+            | ProposalState::Executed => Err(MultisigError::InvalidStateTransition.into()),
         }
     }
 
@@ -468,42 +360,33 @@ impl ConfigProposal {
         maybe_group: Option<&Account<'_, Group>>,
         maybe_asset: Option<&Account<'_, Asset>>,
     ) -> Result<bool> {
-
-        match self.get_target() {
+        match &self.target {
             ProposalTarget::Group => {
                 let group = maybe_group.ok_or(MultisigError::GroupNotProvided)?;
 
                 // Quorum check
-                if self.get_vote_count().le(&group.get_minimum_vote_count()) {
+                if self.vote_count.lt(&group.minimum_vote_count) {
                     return Ok(false);
                 }
 
-                let total_votes_weight = self.get_for_weight() + self.get_against_weight();
+                let total_votes_weight = self.for_weight + self.against_weight;
 
-                let passed_threshold_reached = match self.get_config_change() {
-                    ConfigChange::AddGroupMember { .. } => {
-                        group.get_add_threshold().less_than_or_equal(
-                            self.get_for_weight(),
-                            total_votes_weight,
-                        )?
-                    }
-                    ConfigChange::RemoveGroupMember { .. } => {
-                        group.get_remove_threshold().less_than_or_equal(
-                            self.get_for_weight(),
-                            total_votes_weight,
-                        )?
-                    }
-                    ConfigChange::ChangeGroupConfig { .. } => {
-                        group.get_change_config_threshold().less_than_or_equal(
-                            self.get_for_weight(),
-                            total_votes_weight,
-                        )?
-                    }
+                let passed_threshold_reached = match &self.config_change {
+                    ConfigChange::AddGroupMember { .. } => group
+                        .add_threshold
+                        .less_than_or_equal(self.for_weight, total_votes_weight)?,
+                    ConfigChange::RemoveGroupMember { .. } => group
+                        .remove_threshold
+                        .less_than_or_equal(self.for_weight, total_votes_weight)?,
+                    ConfigChange::ChangeGroupConfig { .. } => group
+                        .change_config_threshold
+                        .less_than_or_equal(self.for_weight, total_votes_weight)?,
                     _ => return Err(MultisigError::UnexpectedConfigChange.into()),
                 };
 
                 if passed_threshold_reached {
                     self.set_state(ProposalState::Passed)?;
+                    self.set_proposal_passed_timestamp(Clock::get()?.unix_timestamp);
                 }
 
                 Ok(passed_threshold_reached)
@@ -512,38 +395,30 @@ impl ConfigProposal {
                 let asset = maybe_asset.ok_or(MultisigError::AssetNotProvided)?;
 
                 // Quorum check
-                if self.get_vote_count().le(&asset.get_minimum_vote_count()) {
+                if self.vote_count.lt(&asset.minimum_vote_count) {
                     return Ok(false);
                 }
 
-                let total_votes_weight = self.get_for_weight() + self.get_against_weight();
+                let total_votes_weight = self.for_weight + self.against_weight;
 
                 // Check the threshold
-                let passed_threshold_reached = match self.get_config_change() {
-                    ConfigChange::AddAssetMember { .. } => {
-                        asset.get_add_threshold().less_than_or_equal(
-                            self.get_for_weight(),
-                            total_votes_weight,
-                        )?
-                    }
-                    ConfigChange::RemoveAssetMember { .. } => {
-                        asset.get_remove_threshold().less_than_or_equal(
-                            self.get_for_weight(),
-                            total_votes_weight,
-                        )?
-                    }
-                    ConfigChange::ChangeAssetConfig { .. } => {
-                        asset.get_change_config_threshold().less_than_or_equal(
-                            self.get_for_weight(),
-                            total_votes_weight,
-                        )?
-                    }
+                let passed_threshold_reached = match &self.config_change {
+                    ConfigChange::AddAssetMember { .. } => asset
+                        .add_threshold
+                        .less_than_or_equal(self.for_weight, total_votes_weight)?,
+                    ConfigChange::RemoveAssetMember { .. } => asset
+                        .remove_threshold
+                        .less_than_or_equal(self.for_weight, total_votes_weight)?,
+                    ConfigChange::ChangeAssetConfig { .. } => asset
+                        .change_config_threshold
+                        .less_than_or_equal(self.for_weight, total_votes_weight)?,
                     _ => return Err(MultisigError::UnexpectedConfigChange.into()),
                 };
 
                 // Set the proposal as passed if the threshold was met
                 if passed_threshold_reached {
                     self.set_state(ProposalState::Passed)?;
+                    self.set_proposal_passed_timestamp(Clock::get()?.unix_timestamp);
                 }
 
                 // Did we just pass?
@@ -559,38 +434,28 @@ impl ConfigProposal {
         maybe_group: Option<&Account<'_, Group>>,
         maybe_asset: Option<&Account<'_, Asset>>,
     ) -> Result<bool> {
-
-        match self.get_target() {
+        match &self.target {
             ProposalTarget::Group => {
                 let group = maybe_group.ok_or(MultisigError::GroupNotProvided)?;
 
                 // Quorum check
-                if self.get_vote_count().lt(&group.get_minimum_vote_count()) {
+                if self.vote_count.lt(&group.minimum_vote_count) {
                     return Ok(false);
                 }
 
-                let total_votes_weight = self.get_for_weight() + self.get_against_weight();
+                let total_votes_weight = self.for_weight + self.against_weight;
 
                 // Check the threshold
-                let failed_threshold_reached = match self.get_config_change() {
-                    ConfigChange::AddGroupMember { .. } => {
-                        group.get_not_add_threshold().less_than_or_equal(
-                            self.get_against_weight(),
-                            total_votes_weight,
-                        )?
-                    }
-                    ConfigChange::RemoveGroupMember { .. } => {
-                        group.get_not_remove_threshold().less_than_or_equal(
-                            self.get_against_weight(),
-                            total_votes_weight,
-                        )?
-                    }
+                let failed_threshold_reached = match &self.config_change {
+                    ConfigChange::AddGroupMember { .. } => group
+                        .not_add_threshold
+                        .less_than_or_equal(self.against_weight, total_votes_weight)?,
+                    ConfigChange::RemoveGroupMember { .. } => group
+                        .not_remove_threshold
+                        .less_than_or_equal(self.against_weight, total_votes_weight)?,
                     ConfigChange::ChangeGroupConfig { .. } => group
-                        .get_not_change_config_threshold()
-                        .less_than_or_equal(
-                            self.get_against_weight(),
-                            total_votes_weight,
-                        )?,
+                        .not_change_config_threshold
+                        .less_than_or_equal(self.against_weight, total_votes_weight)?,
                     _ => return Err(MultisigError::UnexpectedConfigChange.into()),
                 };
 
@@ -606,32 +471,23 @@ impl ConfigProposal {
                 let asset = maybe_asset.ok_or(MultisigError::AssetNotProvided)?;
 
                 // Quorum check
-                if self.get_vote_count().lt(&asset.get_minimum_vote_count()) {
+                if self.vote_count.lt(&asset.minimum_vote_count) {
                     return Ok(false);
                 }
 
-                let total_votes_weight = self.get_for_weight() + self.get_against_weight();
+                let total_votes_weight = self.for_weight + self.against_weight;
 
                 // Check the threshold
-                let failed_threshold_reached = match self.get_config_change() {
-                    ConfigChange::AddAssetMember { .. } => {
-                        asset.get_not_add_threshold().less_than_or_equal(
-                            self.get_against_weight(),
-                            total_votes_weight,
-                        )?
-                    }
-                    ConfigChange::RemoveAssetMember { .. } => {
-                        asset.get_not_remove_threshold().less_than_or_equal(
-                            self.get_against_weight(),
-                            total_votes_weight,
-                        )?
-                    }
+                let failed_threshold_reached = match &self.config_change {
+                    ConfigChange::AddAssetMember { .. } => asset
+                        .not_add_threshold
+                        .less_than_or_equal(self.against_weight, total_votes_weight)?,
+                    ConfigChange::RemoveAssetMember { .. } => asset
+                        .not_remove_threshold
+                        .less_than_or_equal(self.against_weight, total_votes_weight)?,
                     ConfigChange::ChangeAssetConfig { .. } => asset
-                        .get_not_change_config_threshold()
-                        .less_than_or_equal(
-                            self.get_against_weight(),
-                            total_votes_weight,
-                        )?,
+                        .not_change_config_threshold
+                        .less_than_or_equal(self.against_weight, total_votes_weight)?,
                     _ => return Err(MultisigError::UnexpectedConfigChange.into()),
                 };
 
@@ -681,12 +537,12 @@ pub enum ConfigChange {
 impl ConfigChange {
     #[inline]
     pub fn is_asset_change(&self) -> bool {
-        match self {
-            ConfigChange::AddAssetMember { .. } => true,
-            ConfigChange::RemoveAssetMember { .. } => true,
-            ConfigChange::ChangeAssetConfig { .. } => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            ConfigChange::AddAssetMember { .. }
+                | ConfigChange::RemoveAssetMember { .. }
+                | ConfigChange::ChangeAssetConfig { .. }
+        )
     }
 
     #[inline(always)]
@@ -698,17 +554,13 @@ impl ConfigChange {
 /// Stores the state for an existing proposal
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
 pub enum ProposalState {
-    // Proposal is active and voting is open
     Open,
-
-    // Proposal passed successfully
     Passed,
-
-    // Proposal failed to reach threshold or was rejected
+    // Reached the deadline without enough votes
     Failed,
-
-    // The proposal has run out of time to pass
+    // Deadline passed before unanimous vote
     Expired,
+    Executed,
 }
 
 /// Stores whether or not a config proposal is for a group or an asset
@@ -731,29 +583,45 @@ pub enum ConfigType {
     MinimumVoteCount(u32),
     ChangeConfig(FractionalThreshold),
     NotChangeConfig(FractionalThreshold),
+    MinimumTimelock(u32),
+}
+
+/// Locates an asset within the instruction list by specifying which instruction
+/// and which account position within that instruction holds the asset key.
+#[derive(
+    AnchorSerialize, AnchorDeserialize, Clone, Copy, InitSpace, PartialEq, Eq, PartialOrd, Ord,
+)]
+pub struct AssetIndex {
+    pub instruction_index: u8,
+    pub account_index: u8,
 }
 
 /// Stores the relevant information for a Proposal asset in a transaction
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
 pub struct ProposalAsset {
-    index: u8,
-    authority_bump: u8,
-    asset: Pubkey,
-
-    use_vote_weight: u64,     // "For using the asset"
-    not_use_vote_weight: u64, // "Against using the asset"
-
-    vote_count: u32,
-
-    // Threshold tracking
-    threshold_state: ProposalAssetThresholdState,
+    pub use_vote_weight: u64,
+    pub not_use_vote_weight: u64,
+    pub asset: Pubkey,
+    pub vote_count: u32,
+    /// Which instruction in the transaction contains the asset key.
+    pub instruction_index: u8,
+    /// Which account within that instruction holds the asset key.
+    pub account_index: u8,
+    pub authority_bump: u8,
+    pub threshold_state: ProposalAssetThresholdState,
 }
 
 impl ProposalAsset {
-    #[inline(always)]    
-    pub fn new(index: u8, authority_bump: u8, asset: Pubkey) -> Self {
+    #[inline(always)]
+    pub fn new(
+        instruction_index: u8,
+        account_index: u8,
+        authority_bump: u8,
+        asset: Pubkey,
+    ) -> Self {
         Self {
-            index,
+            instruction_index,
+            account_index,
             authority_bump,
             asset,
             use_vote_weight: 0,
@@ -763,60 +631,20 @@ impl ProposalAsset {
         }
     }
 
-    #[inline(always)]    
-    pub fn get_index(&self) -> u8 {
-        self.index
-    }
-
-    #[inline(always)]    
-    pub fn get_authority_bump(&self) -> u8 {
-        self.authority_bump
-    }
-
-    #[inline(always)]    
-    pub fn get_asset(&self) -> &Pubkey {
-        &self.asset
-    }
-
-    #[inline(always)]    
-    pub fn get_use_vote_weight(&self) -> u64 {
-        self.use_vote_weight
-    }
-
-    #[inline(always)]    
-    pub fn get_not_use_vote_weight(&self) -> u64 {
-        self.not_use_vote_weight
-    }
-
-    #[inline(always)]    
-    pub fn get_threshold_state(&self) -> ProposalAssetThresholdState {
-        self.threshold_state
-    }
-
-    #[inline(always)]    
-    pub fn increment_vote_count(&mut self) -> Result<()>{
-        // No checks here since we check membership before voting and the member
-        // count should be sufficiently bounded.
+    #[inline(always)]
+    pub fn increment_vote_count(&mut self) -> Result<()> {
         self.vote_count.add_assign(1);
         Ok(())
     }
 
-    #[inline(always)]    
+    #[inline(always)]
     pub fn decrement_vote_count(&mut self) {
         self.vote_count = self.vote_count.saturating_sub(1);
     }
 
-    #[inline(always)]    
-    pub fn get_vote_count(&self) -> u32 {
-        self.vote_count
-    }
-
     #[inline(always)]
     pub fn add_use_vote_weight(&mut self, weight: u32) {
-        // No checks here since we check membership before voting and the member
-        // count should be sufficiently bounded.
-        // Additinally overflow not possible as 
-        // u32::max()(max member count) * u32::max()(max weight) < u64::max().
+        // Overflow not possible: u32::MAX * u32::MAX < u64::MAX
         self.use_vote_weight.add_assign(u64::from(weight));
     }
 
@@ -827,10 +655,7 @@ impl ProposalAsset {
 
     #[inline(always)]
     pub fn add_not_use_vote_weight(&mut self, weight: u32) {
-        // No checks here since we check membership before voting and the member
-        // count should be sufficiently bounded.
-        // Additinally overflow not possible as 
-        // u32::max()(max member count) * u32::max()(max weight) < u64::max().
+        // Overflow not possible: u32::MAX * u32::MAX < u64::MAX
         self.not_use_vote_weight.add_assign(u64::from(weight));
     }
 
@@ -842,13 +667,14 @@ impl ProposalAsset {
     pub fn set_threshold_state(&mut self, new_state: ProposalAssetThresholdState) -> Result<()> {
         match self.threshold_state {
             ProposalAssetThresholdState::NoThresholdReached => {
-                // Can only move to UseThresholdReached or NotUseThresholdReached
                 if new_state == ProposalAssetThresholdState::UseThresholdReached
                     || new_state == ProposalAssetThresholdState::NotUseThresholdReached
                 {
                     self.threshold_state = new_state;
+                    Ok(())
+                } else {
+                    Err(MultisigError::InvalidStateTransition.into())
                 }
-                Ok(())
             }
             _ => Err(MultisigError::StateAlreadyFinalized.into()),
         }
@@ -871,7 +697,6 @@ pub struct SerailizableAccountMeta {
 }
 
 impl SerailizableAccountMeta {
-
     pub const fn get_size() -> usize {
         32 + // key (Pubkey)
         1 +  // is_writable (bool)
@@ -906,7 +731,7 @@ impl SerializableInstruction {
         }
     }
 
-    #[inline(always)]    
+    #[inline(always)]
     pub fn get_size(&self) -> usize {
         32 + // program_id (Pubkey)
         4 + self.accounts.len() * size_of::<SerailizableAccountMeta>() + // accounts (Vec<SerailizableAccountMeta>)
@@ -917,60 +742,110 @@ impl SerializableInstruction {
 // Stores a transaction associated with a particular proposal
 #[account]
 pub struct ProposalTransaction {
-    proposal: Pubkey,
-    proposal_index: u64,
-    pub asset_indices: Vec<u8>,
+    pub proposal: Pubkey,
+    pub group: Pubkey,
+    pub proposal_index: u64,
+    /// (instruction_index, account_index) pairs - each entry locates the asset key within
+    /// the instruction list so the executor can derive the correct authority PDA.
+    pub asset_indices: Vec<AssetIndex>,
     pub asset_authority_bumps: Vec<[u8; 1]>,
-    pub instruction: SerializableInstruction,
-    account_bump: u8,
+    /// The ordered list of instructions to execute for this proposal.
+    pub instructions: Vec<SerializableInstruction>,
+    pub account_bump: u8,
 }
 
 impl ProposalTransaction {
-    #[inline(always)]    
+    #[inline(always)]
     pub fn new(
         proposal: Pubkey,
+        group: Pubkey,
         proposal_index: u64,
-        asset_indices: Vec<u8>,
+        asset_indices: Vec<AssetIndex>,
         asset_authority_bumps: Vec<[u8; 1]>,
-        instruction: SerializableInstruction,
+        instructions: Vec<SerializableInstruction>,
         account_bump: u8,
     ) -> Self {
         Self {
             proposal,
+            group,
             proposal_index,
             asset_indices,
             asset_authority_bumps,
-            instruction,
+            instructions,
             account_bump,
         }
     }
 
-    #[inline(always)]    
-    pub fn get_proposal(&self) -> &Pubkey {
-        &self.proposal
-    }
-
-    #[inline(always)]    
-    pub fn get_proposal_index(&self) -> u64 {
-        self.proposal_index
-    }
-
-    #[inline(always)]    
-    pub fn get_account_bump(&self) -> u8 {
-        self.account_bump
-    }
-
-    /// Calculate the size of ProposalTransaction
+    /// Calculate the size of ProposalTransaction.
     /// - `asset_len`: number of asset indices (same as number of authority bumps)
-    /// - `instruction_size`: precomputed size of the SerializableInstruction
-    #[inline(always)]    
-    pub fn get_size(asset_len: usize, instruction_size: usize) -> usize {
+    /// - `instructions_total_size`: 4-byte Vec length prefix + sum of each instruction's serialized size
+    #[inline(always)]
+    pub fn get_size(asset_len: usize, instructions_total_size: usize) -> usize {
+        32 + // proposal (Pubkey)
         32 + // group (Pubkey)
         8 +  // proposal_index (u64)
-        (4 + asset_len * 1) + // asset_indices (Vec<u8>)
-        (4 + asset_len * 1) + // asset_authority_bumps (Vec<[u8; 1]>)
-        instruction_size +    // instruction (SerializableInstruction)
+        (4 + asset_len * 2) + // asset_indices (Vec<AssetIndex>) - 2 bytes per entry
+        (4 + asset_len) + // asset_authority_bumps (Vec<[u8; 1]>)
+        instructions_total_size + // instructions (Vec<SerializableInstruction>)
         1 // account_bump (u8)
     }
 }
 
+/// Stale check is deliberately skipped, the proposal survives config changes.
+#[account]
+#[derive(InitSpace)]
+pub struct EmergencyResetProposal {
+    pub propose_timestamp: i64,
+    pub proposal_deadline_timestamp: i64,
+    pub proposal_index: u64,
+    pub group: Pubkey,
+    pub proposer: Pubkey,
+    pub proposal_seed: Pubkey,
+    /// The three keys that will govern the group while it is paused.
+    pub trusted_members: [Pubkey; 3],
+    pub vote_count: u32,
+    pub for_count: u32,
+    pub against_count: u32,
+    pub state: ProposalState,
+    pub account_bump: u8,
+}
+
+impl EmergencyResetProposal {
+    #[inline(always)]
+    pub fn new(
+        proposer: Pubkey,
+        proposal_seed: Pubkey,
+        group: Pubkey,
+        account_bump: u8,
+        proposal_index: u64,
+        proposal_deadline_timestamp: i64,
+        trusted_members: [Pubkey; 3],
+    ) -> Result<Self> {
+        let now = Clock::get()?.unix_timestamp;
+        Ok(Self {
+            group,
+            proposer,
+            proposal_seed,
+            trusted_members,
+            propose_timestamp: now,
+            proposal_deadline_timestamp,
+            proposal_index,
+            state: ProposalState::Open,
+            vote_count: 0,
+            for_count: 0,
+            against_count: 0,
+            account_bump,
+        })
+    }
+
+    #[inline(always)]
+    pub fn set_state(&mut self, new_state: ProposalState) -> Result<()> {
+        match self.state {
+            ProposalState::Open => {
+                self.state = new_state;
+                Ok(())
+            }
+            _ => Err(MultisigError::InvalidStateTransition.into()),
+        }
+    }
+}

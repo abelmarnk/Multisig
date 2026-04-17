@@ -1,74 +1,79 @@
-use crate::state::{
-    error::MultisigError,
-    group::Group,
-    member::AssetMember,
-};
+use crate::state::{asset::Asset, error::MultisigError, group::Group, member::AssetMember};
 use anchor_lang::{prelude::*, solana_program::system_program};
 
 #[derive(Accounts)]
-/// The accounts are bound together with the seeds and the rent collector check in the handler
 pub struct CleanUpAssetMemberInstructionAccounts<'info> {
     #[account(
-        seeds = [b"group", group.get_group_seed().as_ref()],
-        bump = group.get_account_bump()
+        seeds = [b"group", group.group_seed.as_ref()],
+        bump = group.account_bump
     )]
     pub group: Account<'info, Group>,
 
+    /// Seeds [group, asset_member.asset, member] guarantee asset_member.{group, asset, user}
+    /// all match the other accounts - no separate field equality checks are needed.
     #[account(
         mut,
-        seeds = [b"asset_member", group.key().as_ref(), member.key().as_ref()],
-        bump = asset_member.get_account_bump(),
+        seeds = [
+            b"asset-member",
+            group.key().as_ref(),
+            asset_member.asset.as_ref(),
+            member.key().as_ref()
+        ],
+        bump = asset_member.account_bump,
         close = rent_collector
     )]
     pub asset_member: Account<'info, AssetMember>,
 
-    /// The corresponding group member account.
-    /// CHECK: We only verify its absence (it must have been closed).
+    /// Seeds bind asset to group + asset_member.asset - asset.group == group and
+    /// asset.asset_address == asset_member.asset are guaranteed.
+    #[account(
+        mut,
+        seeds = [b"asset", group.key().as_ref(), asset_member.asset.as_ref()],
+        bump = asset.account_bump
+    )]
+    pub asset: Account<'info, Asset>,
+
+    /// CHECK: Seeds bind this PDA to group + member; we only verify it is absent (closed).
     #[account(
         seeds = [b"member", group.key().as_ref(), member.key().as_ref()],
         bump,
     )]
     pub group_member: UncheckedAccount<'info>,
 
-    pub member:SystemAccount<'info>,
+    /// CHECK: Only the key is used as a seed for the asset-member and group-member PDAs.
+    pub member: UncheckedAccount<'info>,
 
-    /// CHECK: Rent collector
+    /// CHECK: Rent collector; verified against group.rent_collector in checks().
     #[account(mut)]
     pub rent_collector: UncheckedAccount<'info>,
 }
 
-#[inline(always)] /// This function is only called once in the handler
-fn clean_up_asset_member_checks(
-    ctx: &Context<CleanUpAssetMemberInstructionAccounts>
-)->Result<()>{
+#[inline(always)]
+fn checks(ctx: &Context<CleanUpAssetMemberInstructionAccounts>) -> Result<()> {
     let group = &ctx.accounts.group;
     let group_member = &ctx.accounts.group_member;
     let rent_collector = &ctx.accounts.rent_collector;
 
-    // Validate rent collector
     require_keys_eq!(
         rent_collector.key(),
-        *group.get_rent_collector(),
+        group.rent_collector,
         MultisigError::UnexpectedRentCollector
     );
 
-    // Ensure that the group member account is closed
-    // A closed account will have lamports == 0 and owner == system_program and data empty
     require!(
-        group_member.lamports() == 0 && 
-        group_member.owner == &system_program::ID && 
-        group_member.data_is_empty(),
+        group_member.owner == &system_program::ID && group_member.data_is_empty(),
         MultisigError::GroupMemberStillActive
     );
 
     Ok(())
 }
 
-/// Close an asset member account that has had it's group member account removed(by a proposal)
-/// the rent is sent to the rent collector
-/// This instruction can be called by anyone
+/// Close an asset member account that has had it's group member account removed(by a proposal).
+/// The rent is sent to the rent collector.
+/// This instruction can be called by anyone.
 pub fn clean_up_asset_member_handler(
     ctx: Context<CleanUpAssetMemberInstructionAccounts>,
 ) -> Result<()> {
-    clean_up_asset_member_checks(&ctx)
+    checks(&ctx)?;
+    ctx.accounts.asset.decrement_member_count()
 }

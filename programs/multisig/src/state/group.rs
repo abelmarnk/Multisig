@@ -1,48 +1,54 @@
-use crate::{MultisigError, utils::FractionalThreshold};
+use crate::{utils::FractionalThreshold, MultisigError};
 use anchor_lang::prelude::*;
 
 /// Stores information required to govern a group
 #[account]
 #[derive(InitSpace)]
 pub struct Group {
-    group_seed: Pubkey,
+    pub next_proposal_index: u64,
+    pub proposal_index_after_stale: u64,
 
-    rent_collector:Pubkey,
+    pub add_threshold: FractionalThreshold,
+    pub not_add_threshold: FractionalThreshold,
+    pub remove_threshold: FractionalThreshold,
+    pub not_remove_threshold: FractionalThreshold,
+    pub change_config_threshold: FractionalThreshold,
+    pub not_change_config_threshold: FractionalThreshold,
 
-    /// Threshold to add a member
-    add_threshold: FractionalThreshold,
-    /// Threshold to stop adding a member
-    not_add_threshold: FractionalThreshold,
+    pub group_seed: Pubkey,
+    pub rent_collector: Pubkey,
 
-    /// Threshold to remove a member
-    remove_threshold: FractionalThreshold,
-    /// Threshold to stop removing a member
-    not_remove_threshold: FractionalThreshold,
+    /// Keys authorised to operate during pause mode; cleared on exit.
+    pub reset_trusted_1: Pubkey,
+    pub reset_trusted_2: Pubkey,
+    pub reset_trusted_3: Pubkey,
 
-    /// Threshold to change configuration
-    change_config_threshold: FractionalThreshold,
-    /// Threshold to stop a configuration change
-    not_change_config_threshold: FractionalThreshold,
+    pub minimum_member_count: u32,
+    pub minimum_vote_count: u32,
+    pub max_member_weight: u32,
+    pub member_count: u32,
+    pub minimum_timelock: u32,
 
-    /// Minimum number of members required for the group to remain valid
-    minimum_member_count: u32,
-
-    minimum_vote_count: u32,
-
-    max_member_weight: u32,
-
-    next_proposal_index: u64,
-
-    proposal_index_after_stale: u64,
-
-    /// Total number of members
-    member_count: u32,
-
-    /// PDA bump for the group account itself
-    account_bump: u8,
+    pub paused: bool,
+    pub account_bump: u8,
 }
 
 impl Group {
+    #[inline(always)]
+    fn validate_minimum_vote_count(member_count: u32, count: u32) -> Result<()> {
+        require_gt!(count, 0, MultisigError::InvalidMemberCount);
+        require_gte!(member_count, count, MultisigError::InvalidMemberCount);
+        Ok(())
+    }
+
+    #[inline(always)]
+    fn validate_minimum_member_count(member_count: u32, count: u32) -> Result<()> {
+        require_gt!(count, 0, MultisigError::InvalidMemberCount);
+        require_gte!(member_count, count, MultisigError::InvalidMemberCount);
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         group_seed: Pubkey,
         rent_collector: Pubkey,
@@ -55,24 +61,26 @@ impl Group {
         minimum_member_count: u32,
         minimum_vote_count: u32,
         max_member_weight: u32,
+        minimum_timelock: u32,
         member_count: u32,
         account_bump: u8,
     ) -> Result<Self> {
         // Threshold checks
-        add_threshold.is_valid()?;
-        remove_threshold.is_valid()?;
-        change_config_threshold.is_valid()?;
-        not_add_threshold.is_valid()?;
-        not_remove_threshold.is_valid()?;
-        not_change_config_threshold.is_valid()?;
+        FractionalThreshold::validate_non_overlapping_pair(add_threshold, not_add_threshold)?;
+        FractionalThreshold::validate_non_overlapping_pair(remove_threshold, not_remove_threshold)?;
+        FractionalThreshold::validate_non_overlapping_pair(
+            change_config_threshold,
+            not_change_config_threshold,
+        )?;
 
         require_gt!(member_count, 0, MultisigError::InvalidMemberCount);
-        require_gt!(member_count, minimum_vote_count, MultisigError::InvalidMemberCount);
-        require_gte!(member_count, minimum_member_count, MultisigError::InvalidMemberCount);
+        require_gt!(max_member_weight, 0, MultisigError::InvalidMemberWeight);
+        Self::validate_minimum_vote_count(member_count, minimum_vote_count)?;
+        Self::validate_minimum_member_count(member_count, minimum_member_count)?;
 
         let group = Self {
-            group_seed,
-            rent_collector,
+            next_proposal_index: 0,
+            proposal_index_after_stale: 0,
             add_threshold,
             not_add_threshold,
             remove_threshold,
@@ -82,100 +90,61 @@ impl Group {
             minimum_member_count,
             minimum_vote_count,
             max_member_weight,
-            next_proposal_index: 0,
-            proposal_index_after_stale: 0,
             member_count,
-            account_bump
+            minimum_timelock,
+            group_seed,
+            rent_collector,
+            reset_trusted_1: Pubkey::default(),
+            reset_trusted_2: Pubkey::default(),
+            reset_trusted_3: Pubkey::default(),
+            paused: false,
+            account_bump,
         };
 
         Ok(group)
     }
 
-    #[inline(always)]
-    pub fn get_group_seed(&self) -> &Pubkey {
-        &self.group_seed
-    }
-
-    #[inline(always)]
-    pub fn get_rent_collector(&self) -> &Pubkey{
-        &self.rent_collector
-    }
-
-    #[inline(always)]
-    pub fn set_rent_collector(&mut self, rent_collector: Pubkey){
-        self.rent_collector = rent_collector;
-    } 
-
-    #[inline(always)]
-    pub fn get_account_bump(&self) -> u8 {
-        self.account_bump
-    }
-
-    #[inline(always)]
-    pub fn get_add_threshold(&self) -> FractionalThreshold {
-        self.add_threshold
-    }
-
     pub fn set_add_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
-        threshold.is_valid()?;
+        FractionalThreshold::validate_non_overlapping_pair(threshold, self.not_add_threshold)?;
         self.add_threshold = threshold;
         Ok(())
     }
 
-    #[inline(always)]
-    pub fn get_not_add_threshold(&self) -> FractionalThreshold {
-        self.not_add_threshold
-    }
-
     pub fn set_not_add_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
-        threshold.is_valid()?;
+        FractionalThreshold::validate_non_overlapping_pair(self.add_threshold, threshold)?;
         self.not_add_threshold = threshold;
         Ok(())
     }
 
-    #[inline(always)]
-    pub fn get_remove_threshold(&self) -> FractionalThreshold {
-        self.remove_threshold
-    }
-
     pub fn set_remove_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
-        threshold.is_valid()?;
+        FractionalThreshold::validate_non_overlapping_pair(threshold, self.not_remove_threshold)?;
         self.remove_threshold = threshold;
         Ok(())
     }
 
-    #[inline(always)]
-    pub fn get_not_remove_threshold(&self) -> FractionalThreshold {
-        self.not_remove_threshold
-    }
-
     pub fn set_not_remove_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
-        threshold.is_valid()?;
+        FractionalThreshold::validate_non_overlapping_pair(self.remove_threshold, threshold)?;
         self.not_remove_threshold = threshold;
         Ok(())
     }
 
-    #[inline(always)]
-    pub fn get_change_config_threshold(&self) -> FractionalThreshold {
-        self.change_config_threshold
-    }
-
     pub fn set_change_config_threshold(&mut self, threshold: FractionalThreshold) -> Result<()> {
-        threshold.is_valid()?;
+        FractionalThreshold::validate_non_overlapping_pair(
+            threshold,
+            self.not_change_config_threshold,
+        )?;
         self.change_config_threshold = threshold;
         Ok(())
-    }
-
-    #[inline(always)]
-    pub fn get_not_change_config_threshold(&self) -> FractionalThreshold {
-        self.not_change_config_threshold
     }
 
     pub fn set_not_change_config_threshold(
         &mut self,
         threshold: FractionalThreshold,
     ) -> Result<()> {
-        threshold.is_valid()?;
+        FractionalThreshold::validate_non_overlapping_pair(
+            self.change_config_threshold,
+            threshold,
+        )?;
         self.not_change_config_threshold = threshold;
         Ok(())
     }
@@ -190,11 +159,9 @@ impl Group {
     }
 
     pub fn decrement_member_count(&mut self) -> Result<()> {
-        let new_count = self
-            .member_count
-            .saturating_sub(1);
+        let new_count = self.member_count.saturating_sub(1);
 
-        if new_count.le(&self.minimum_vote_count) || new_count.lt(&self.minimum_member_count){
+        if new_count.lt(&self.minimum_vote_count) || new_count.lt(&self.minimum_member_count) {
             return Err(MultisigError::InvalidMemberCount.into());
         }
 
@@ -204,61 +171,61 @@ impl Group {
     }
 
     #[inline(always)]
-    pub fn get_member_count(&self) -> u32 { 
-        self.member_count 
-    }
-
-    #[inline(always)]
     pub fn set_minimum_vote_count(&mut self, count: u32) -> Result<()> {
-        if count.ge(&self.member_count) {
-            return Err(crate::MultisigError::InvalidMemberCount.into());
-        }
+        Self::validate_minimum_vote_count(self.member_count, count)?;
         self.minimum_vote_count = count;
         Ok(())
-    }
-    
-    #[inline(always)]
-    pub fn get_minimum_vote_count(&self) -> u32 {
-        self.minimum_vote_count
     }
 
     #[inline(always)]
     pub fn set_minimum_member_count(&mut self, count: u32) -> Result<()> {
-        if count.gt(&self.member_count) {
-            return Err(crate::MultisigError::InvalidMemberCount.into());
-        }
+        Self::validate_minimum_member_count(self.member_count, count)?;
         self.minimum_member_count = count;
         Ok(())
     }
 
     #[inline(always)]
-    pub fn get_minimum_member_count(&self) -> u32 {
-        self.minimum_member_count
+    pub fn set_minimum_timelock(&mut self, timelock: u32) {
+        self.minimum_timelock = timelock;
     }
 
+    /// Decrement member count without enforcing minimum thresholds.
     #[inline(always)]
-    pub fn get_max_member_weight(&self) -> u32 {
-        self.max_member_weight
+    pub fn force_decrement_member_count(&mut self) {
+        self.member_count = self.member_count.saturating_sub(1);
     }
 
     pub fn get_and_increment_proposal_index(&mut self) -> Result<u64> {
         let current = self.next_proposal_index;
-        self.next_proposal_index = self.next_proposal_index.checked_add(1).ok_or(ProgramError::ArithmeticOverflow)?;
+        self.next_proposal_index = self
+            .next_proposal_index
+            .checked_add(1)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
 
         Ok(current)
     }
 
-    #[inline(always)]
-    pub fn get_proposal_index_after_stale(&self) -> u64 {
-        self.proposal_index_after_stale
-    }
-
-    /// This function is called after a config change to invalidate prior proposals
-    /// and transactions using the previous config
+    /// Marks all proposals with index < next_proposal_index as stale.
     #[inline(always)]
     pub fn update_stale_proposal_index(&mut self) {
         self.proposal_index_after_stale = self.next_proposal_index;
     }
 
+    /// Pause the group and record the three trusted keys.
+    #[inline(always)]
+    pub fn pause_group(&mut self, trusted_members: [Pubkey; 3]) {
+        self.reset_trusted_1 = trusted_members[0];
+        self.reset_trusted_2 = trusted_members[1];
+        self.reset_trusted_3 = trusted_members[2];
+        self.paused = true;
+    }
 
+    /// Clear pause state and wipe trusted keys.
+    #[inline(always)]
+    pub fn clear_pause_state(&mut self) {
+        self.paused = false;
+        self.reset_trusted_1 = Pubkey::default();
+        self.reset_trusted_2 = Pubkey::default();
+        self.reset_trusted_3 = Pubkey::default();
+    }
 }

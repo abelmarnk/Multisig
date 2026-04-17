@@ -1,120 +1,127 @@
-use crate::{Group, NormalProposal};
 use crate::state::{error::MultisigError, ProposalTransaction};
+use crate::{Group, NormalProposal};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::solana_program::program::invoke_signed;
 
 #[derive(Accounts)]
 pub struct ExecuteProposalTransactionInstructionAccounts<'info> {
+    /// Seeds bind proposal to group - proposal.group == group is guaranteed.
     #[account(
-        seeds = [b"proposal", proposal.get_group().as_ref(), proposal.get_proposal_seed().as_ref()],
-        bump = proposal.get_account_bump(),
+        mut,
+        seeds = [b"proposal", group.key().as_ref(), proposal.proposal_seed.as_ref()],
+        bump = proposal.account_bump,
     )]
     pub proposal: Account<'info, NormalProposal>,
 
+    /// Seeds bind transaction to proposal - proposal_transaction.proposal == proposal is guaranteed.
     #[account(
         mut,
         close = rent_collector,
         seeds = [b"proposal-transaction", proposal.key().as_ref()],
-        bump = proposal_transaction.get_account_bump(),
+        bump = proposal_transaction.account_bump,
     )]
     pub proposal_transaction: Account<'info, ProposalTransaction>,
 
     #[account(
         mut,
-        seeds = [b"group", group.get_group_seed().as_ref()],
-        bump = group.get_account_bump()
+        seeds = [b"group", group.group_seed.as_ref()],
+        bump = group.account_bump
     )]
     pub group: Account<'info, Group>,
 
-    /// CHECK: Rent collector
+    /// CHECK: Rent collector; verified against group.rent_collector in checks().
     #[account(mut)]
-    pub rent_collector: UncheckedAccount<'info>
+    pub rent_collector: UncheckedAccount<'info>,
 }
 
-#[inline(always)]// This function is only called once in the handler
-fn execute_proposal_transaction_checks(
-    ctx: &Context<ExecuteProposalTransactionInstructionAccounts>,
-)->Result<()>{
-    // Ensure the rent collector matches
+#[inline(always)]
+fn checks(ctx: &Context<ExecuteProposalTransactionInstructionAccounts>) -> Result<()> {
+    require!(!ctx.accounts.group.paused, MultisigError::GroupPaused);
+
     require_keys_eq!(
-        *ctx.accounts.group.get_rent_collector(), 
-        ctx.accounts.rent_collector.key(), 
+        ctx.accounts.group.rent_collector,
+        ctx.accounts.rent_collector.key(),
         MultisigError::UnexpectedRentCollector
     );
 
     // Validate proposal
     require!(
-        ctx.accounts.proposal.get_state() == crate::ProposalState::Passed,
+        ctx.accounts.proposal.state == crate::ProposalState::Passed,
         MultisigError::ProposalNotPassed
     );
 
     let now = Clock::get()?.unix_timestamp;
 
-    require_gt!(
+    require_gte!(
         now,
-        ctx.accounts.proposal.get_valid_from_timestamp().map_err(|_| MultisigError::ProposalNotPassed)?,
+        ctx.accounts
+            .proposal
+            .get_valid_from_timestamp()
+            .map_err(|_| MultisigError::ProposalNotPassed)?,
         MultisigError::ProposalStillTimelocked
     );
 
-    require_gt!(
-        ctx.accounts.proposal.get_proposal_index(),
-        ctx.accounts.group.get_proposal_index_after_stale(),
+    require_gte!(
+        ctx.accounts.proposal.proposal_deadline_timestamp,
+        now,
+        MultisigError::ProposalExpired
+    );
+
+    require_gte!(
+        ctx.accounts.proposal.proposal_index,
+        ctx.accounts.group.proposal_index_after_stale,
         MultisigError::ProposalStale
     );
 
     Ok(())
 }
 
-/// Execute a transaction associated with a particular proposal
-/// This instruction can be called by anyone
+/// Executes the transaction attached to a passed normal proposal.
 pub fn execute_proposal_transaction_handler(
     ctx: Context<ExecuteProposalTransactionInstructionAccounts>,
 ) -> Result<()> {
+    checks(&ctx)?;
 
-    execute_proposal_transaction_checks(&ctx)?;
-
-    let group = &mut ctx.accounts.group;
     let proposal = &ctx.accounts.proposal;
     let proposal_transaction = &ctx.accounts.proposal_transaction;
-    
-    group.update_stale_proposal_index();
-    
-    // The actual instruction that was stored previously
-    let instruction: Instruction = proposal_transaction.instruction.into_instruction();
-    
-    // Derive signer seeds for each involved asset
-    let mut signer_seeds: Vec<Vec<&[u8]>> =
-    Vec::with_capacity(proposal_transaction.asset_indices.len());
-    
-    let group_key = proposal.get_group();
+    let group_key = proposal.group;
 
-    for asset_index in proposal_transaction.asset_indices.iter() {
-        // Find the matching ProposalAsset from the proposal_transaction
-        // Bounds were checked during the creation of the instruction
-        let asset_key = &proposal_transaction.instruction.accounts[usize::from(*asset_index)].key;
+    // Locate each asset key by following (instruction_index, account_index) into the stored instruction list.
+    let mut signer_seeds: Vec<[&[u8]; 4]> =
+        Vec::with_capacity(proposal_transaction.asset_indices.len());
 
-        let seeds: Vec<&[u8]> = vec![
+    for (position, asset_index) in proposal_transaction.asset_indices.iter().enumerate() {
+        let ix = proposal_transaction
+            .instructions
+            .get(usize::from(asset_index.instruction_index))
+            .ok_or(MultisigError::InvalidAssetIndex)?;
+        let asset_key = &ix
+            .accounts
+            .get(usize::from(asset_index.account_index))
+            .ok_or(MultisigError::InvalidAssetIndex)?
+            .key;
+        let authority_bump = proposal_transaction
+            .asset_authority_bumps
+            .get(position)
+            .ok_or(MultisigError::InvalidAssetIndex)?;
+
+        signer_seeds.push([
             b"authority",
             group_key.as_ref(),
             asset_key.as_ref(),
-            &proposal_transaction.asset_authority_bumps[usize::from(*asset_index)],
-        ];
-
-        signer_seeds.push(seeds);
+            authority_bump,
+        ]);
     }
 
-    // Collect seeds into slices
     let signer_slices: Vec<&[&[u8]]> = signer_seeds.iter().map(|s| s.as_slice()).collect();
 
-    // Consider building the signer_slices inside the argument space for this call, so we can 
-    // avoid building two vectors
-    // Execute the stored instruction
-    invoke_signed(
-        &instruction,
-        &ctx.remaining_accounts, // accounts required by the inner instruction
-        &signer_slices,          // PDA authority seeds
-    )?;
+    for serializable in &proposal_transaction.instructions {
+        let instruction: Instruction = serializable.into_instruction();
+        invoke_signed(&instruction, ctx.remaining_accounts, &signer_slices)?;
+    }
+
+    ctx.accounts.proposal.mark_executed()?;
 
     Ok(())
 }

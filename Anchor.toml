@@ -1,15 +1,19 @@
 [toolchain]
 package_manager = "yarn"
+anchor_version = "0.31.1"
 
 [features]
 resolution = true
 skip-lint = false
 
+[workspace]
+members = ["programs/multisig"]
+
 [programs.localnet]
-tokens = "HDtNkcgMfN4CARCF4DgFo7BGBqyNjQ6LGNYKwQLkshTR"
+multisig = "HDtNkcgMfN4CARCF4DgFo7BGBqyNjQ6LGNYKwQLkshTR"
 
 [registry]
-url = "https:///api.apr.dev"
+url = "https://api.apr.dev"
 
 [provider]
 cluster = "localnet"

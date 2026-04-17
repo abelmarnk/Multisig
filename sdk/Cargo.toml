@@ -1,0 +1,15 @@
+[package]
+name = "multisig-sdk"
+version = "0.1.0"
+edition = "2021"
+description = "Client helpers for the Solana multisig Anchor program"
+license = "MIT"
+
+[lib]
+name = "multisig_sdk"
+path = "src/lib.rs"
+
+[dependencies]
+anchor-lang = "0.31.1"
+multisig = { path = "../programs/multisig", features = ["no-entrypoint"] }
+solana-sdk = "2.2.1"

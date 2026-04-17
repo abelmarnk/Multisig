@@ -1,4 +1,3 @@
-
 use anchor_lang::prelude::*;
 
 #[error_code]
@@ -14,11 +13,13 @@ pub enum MultisigError {
     #[msg("The config supplied does not match the instruction")]
     InvalidConfigChange,
     #[msg("The Member provided does not match the expected member")]
-    InvalidMember, /// Change to unexpected if necessary
+    InvalidMember,
+    /// Change to unexpected if necessary
     #[msg("The proposal has not yet passed")]
     ProposalNotPassed,
     #[msg("The asset provided does not match the expected asset")]
-    InvalidAsset, /// Change to unexpected if necessary
+    InvalidAsset,
+    /// Change to unexpected if necessary
     #[msg("The provided member goes not govern the group")]
     NotGroupMember,
     #[msg("The provided member goes not govern the asset")]
@@ -95,6 +96,8 @@ pub enum MultisigError {
     InvalidAccountState,
     #[msg("Invalid member count")]
     InvalidMemberCount,
+    #[msg("Invalid member weight")]
+    InvalidMemberWeight,
     #[msg("State already finalized")]
     StateAlreadyFinalized,
     #[msg("Invalid state transition")]
@@ -121,6 +124,22 @@ pub enum MultisigError {
     UnexpectedRentCollector,
     #[msg("Expiry offset from time lock is too small")]
     ExpiriyOffsetTooSmall,
+    #[msg("Unsupported token program")]
+    UnsupportedTokenProgram,
+    #[msg("Unsupported token extensions")]
+    UnsupportedTokenExtensions,
+    #[msg("At least one instruction must be provided")]
+    EmptyInstructions,
+    #[msg("Group is in emergency pause mode; normal operations are blocked")]
+    GroupPaused,
+    #[msg("Group is not in pause mode; this instruction requires pause mode")]
+    GroupNotPaused,
+    #[msg("Proposal timelock is below the group minimum timelock")]
+    TimelockBelowMinimum,
+    #[msg("Signer does not match the expected trusted member")]
+    InvalidTrustedMember,
+    #[msg("Trusted members must be three distinct keys")]
+    TrustedMembersNotUnique,
 }
 
 /// Implement Into<ProgramError> for MultisigError

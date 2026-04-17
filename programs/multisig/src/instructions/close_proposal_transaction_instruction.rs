@@ -1,73 +1,74 @@
-use anchor_lang::{prelude::*};
-use crate::{Group, NormalProposal, ProposalState, state::{ProposalTransaction, error::MultisigError}};
+use crate::{
+    state::{error::MultisigError, ProposalTransaction},
+    Group, NormalProposal, ProposalState,
+};
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct CloseProposalTransactionInstructionAccounts<'info> {
-
     #[account(
-        seeds = [b"group", group.get_group_seed().as_ref()],
-        bump = group.get_account_bump()
+        seeds = [b"group", group.group_seed.as_ref()],
+        bump = group.account_bump
     )]
-    pub group:Account<'info, Group>,
+    pub group: Account<'info, Group>,
 
-    /// CHECK: The proposal related to this transaction, it might be closed to we don't attempt to load it
-    pub proposal:UncheckedAccount<'info>,
+    /// CHECK: The proposal related to this transaction; may be closed so we load it as UncheckedAccount.
+    pub proposal: UncheckedAccount<'info>,
 
+    /// Seeds bind transaction to proposal - proposal_transaction.proposal == proposal is guaranteed.
+    /// proposal_transaction.group is checked against group in checks() because proposal is
+    /// UncheckedAccount (no seed chain from transaction -> group).
     #[account(
         mut,
         seeds = [b"proposal-transaction", proposal.key.as_ref()],
-        bump = proposal_transaction.get_account_bump(),
+        bump = proposal_transaction.account_bump,
         close = rent_collector,
     )]
     pub proposal_transaction: Account<'info, ProposalTransaction>,
-    
-    /// CHECK: Rent collector
+
+    /// CHECK: Rent collector; verified against group.rent_collector in checks().
     #[account(mut)]
     pub rent_collector: UncheckedAccount<'info>,
 }
 
-pub fn close_proposal_transaction_checks(
-    ctx: &Context<CloseProposalTransactionInstructionAccounts>    
-)->Result<()>{
+#[inline(always)]
+fn checks(ctx: &Context<CloseProposalTransactionInstructionAccounts>) -> Result<()> {
     let group = &ctx.accounts.group;
     let rent_collector = &ctx.accounts.rent_collector;
     let proposal_transaction = &ctx.accounts.proposal_transaction;
 
-    // Ensure the rent collector matches
     require_keys_eq!(
-        *rent_collector.key,
-        *group.get_rent_collector(),
-        MultisigError::UnexpectedRentCollector   
+        proposal_transaction.group,
+        group.key(),
+        MultisigError::UnexpectedGroup
     );
 
-    // Check if the proposal is closed
+    require_keys_eq!(
+        *rent_collector.key,
+        group.rent_collector,
+        MultisigError::UnexpectedRentCollector
+    );
+
     let proposal = &ctx.accounts.proposal;
 
-    
-    if !(proposal.data_is_empty() && proposal.lamports() == 0 && proposal.owner == &System::id()) {
-        let proposal_account: NormalProposal = NormalProposal::try_deserialize(
-            &mut &proposal.data.borrow()[..])?;        
+    if !(proposal.data_is_empty() && proposal.owner == &System::id()) {
+        let proposal_account: NormalProposal =
+            NormalProposal::try_deserialize(&mut &proposal.data.borrow()[..])?;
 
         // Ensure the proposal is in a state that allows closing the transaction
-        
-        match proposal_account.get_state() {
-            ProposalState::Open =>{
-                let now = Clock::get()?.unix_timestamp;
 
-                require_gt!(
-                    now,
-                    proposal_account.get_proposal_deadline_timestamp(),
-                    MultisigError::ProposalStillActive
-                )
-            },
-            ProposalState::Passed =>{
-                require_gt!(
-                    group.get_proposal_index_after_stale(),
-                    proposal_transaction.get_proposal_index(),
-                    MultisigError::ProposalStillActive
-                );
-            },
-            ProposalState::Expired | ProposalState::Failed =>{} // Ok
+        let now = Clock::get()?.unix_timestamp;
+        let is_stale = group.proposal_index_after_stale > proposal_transaction.proposal_index;
+        let is_expired = now >= proposal_account.proposal_deadline_timestamp;
+
+        match proposal_account.state {
+            ProposalState::Open => {
+                require!(is_expired || is_stale, MultisigError::ProposalStillActive)
+            }
+            ProposalState::Passed => {
+                require!(is_stale || is_expired, MultisigError::ProposalStillActive);
+            }
+            ProposalState::Expired | ProposalState::Failed | ProposalState::Executed => {} // Ok
         }
     }
 
@@ -76,10 +77,10 @@ pub fn close_proposal_transaction_checks(
 
 /// Close a proposal transaction that though was finalized after the proposal was passed
 /// and active(no config had changed), execution was delayed till after a config changed
-/// and refund the rent to the proposal
-/// This instruction can be called by anyone
+/// and refund the rent to the proposal.
+/// This instruction can be called by anyone.
 pub fn close_proposal_transaction_handler(
     ctx: Context<CloseProposalTransactionInstructionAccounts>,
 ) -> Result<()> {
-    close_proposal_transaction_checks(&ctx)
+    checks(&ctx)
 }

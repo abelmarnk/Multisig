@@ -21,6 +21,8 @@ pub struct CreateGroupInstructionArgs {
     pub minimum_member_count: u32,
     pub minimum_vote_count: u32,
     pub max_member_weight: u32,
+    /// Minimum timelock (seconds) that every proposal for this group must honour.
+    pub minimum_timelock: u32,
     pub member_weights: [u32; 5],
     pub member_permissions: [Permissions; 5],
 }
@@ -95,14 +97,13 @@ pub struct CreateGroupInstructionAccounts<'info> {
 
     pub system_program: Program<'info, System>,
 }
-/// Initializes a new governance group account with its initial configuration, seeds, 
+/// Initializes a new governance group account with its initial configuration, seeds,
 /// and proposal index tracking as well as other state for maintaining the multisig.
-/// This instruction can be called by anyone
+/// This instruction can be called by anyone.
 pub fn create_group_handler(
     ctx: Context<CreateGroupInstructionAccounts>,
     args: CreateGroupInstructionArgs,
 ) -> Result<()> {
-
     let CreateGroupInstructionArgs {
         group_seed,
         rent_collector,
@@ -115,13 +116,13 @@ pub fn create_group_handler(
         minimum_member_count,
         minimum_vote_count,
         max_member_weight,
+        minimum_timelock,
         member_weights,
-        member_permissions
+        member_permissions,
     } = args;
 
     let group = &mut ctx.accounts.group;
 
-    // Initialize group
     let new_group = Group::new(
         group_seed,
         rent_collector,
@@ -134,11 +135,11 @@ pub fn create_group_handler(
         minimum_member_count,
         minimum_vote_count,
         max_member_weight,
+        minimum_timelock,
         5, // initial member count
         ctx.bumps.group,
     )?;
     group.set_inner(new_group);
-
 
     let member_accounts = [
         &mut ctx.accounts.member_account_1,
@@ -164,7 +165,6 @@ pub fn create_group_handler(
         &ctx.accounts.member_5,
     ];
 
-    // Initialize all member accounts
     for ((((account, member), weight), permissions), bump) in member_accounts
         .into_iter()
         .zip(members.into_iter())
@@ -174,7 +174,7 @@ pub fn create_group_handler(
     {
         account.set_inner(GroupMember::new(
             member.key(),
-            group.key(),            
+            group.key(),
             permissions,
             weight,
             bump,
