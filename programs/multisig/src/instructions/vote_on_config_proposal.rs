@@ -122,7 +122,7 @@ pub fn vote_on_config_proposal_handler(
 
     match target {
         ProposalTarget::Group => {
-            let weight = group_member.weight;
+            let weight = group_member.weight.min(group.max_member_weight);
             require_gt!(weight, 0, MultisigError::UnauthorizedVoter);
 
             if !is_first_vote {
@@ -172,7 +172,7 @@ pub fn vote_on_config_proposal_handler(
                 MultisigError::InvalidAssetMember
             );
 
-            let weight = asset_member.weight;
+            let weight = asset_member.weight.min(group.max_member_weight);
             require_gt!(weight, 0, MultisigError::UnauthorizedVoter);
 
             if !is_first_vote {

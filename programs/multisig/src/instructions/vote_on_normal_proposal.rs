@@ -150,7 +150,8 @@ pub fn vote_on_normal_proposal_handler(
     let asset_member = &ctx.accounts.asset_member;
     let vote_record = &mut ctx.accounts.vote_record;
 
-    let weight = asset_member.weight;
+    let group = &ctx.accounts.group;
+    let weight = asset_member.weight.min(group.max_member_weight);
     require_gt!(weight, 0, MultisigError::UnauthorizedVoter);
 
     let asset_index = usize::from(voting_asset_index);
