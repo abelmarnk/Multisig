@@ -255,6 +255,7 @@ exit_pause_mode             <- validates group state
 | Rebuild cannot be gamed | `exit_pause_mode` enforces that the group is in a valid state before unpausing |
 | Multiple concurrent proposals | Different `proposal_seed` values yield independent proposals; whichever executes first wins |
 
+Thus the security of this relies on the assumption that the attacker cannot gain access to ***all*** the member keys.
 ---
 
 ## Prerequisites
